@@ -17,99 +17,127 @@
             background-color: #f5f5f5;
         }
         .container {
-            width: 90%;
             max-width: 1200px;
             padding: 2rem;
             background-color: white;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            text-align: center;
         }
         h1 {
             color: #333;
             margin-bottom: 2rem;
-        }
-        .genre-selection {
-            margin: 2rem 0;
-            min-height: 300px;
-            border: 2px dashed #ccc;
-            border-radius: 8px;
-            padding: 2rem;
+            text-align: center;
+            font-size: 2.5rem;
         }
         .genre-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 1rem;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+            max-width: 1000px;
+            margin-left: auto;
+            margin-right: auto;
         }
         .genre-tile {
             background-color: #f8f8f8;
+            border: 2px solid #1DB954;
             border-radius: 8px;
-            padding: 2rem 1rem;
+            padding: 1.5rem;
             cursor: pointer;
             transition: all 0.2s;
-            text-transform: capitalize;
-            font-weight: 500;
-            font-size: 1.1rem;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         .genre-tile:hover {
+            background-color: #1DB954;
+            color: white;
             transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
         .genre-tile.selected {
             background-color: #1DB954;
             color: white;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
-        .continue-button {
+        .genre-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin: 0;
+            line-height: 1.2;
+        }
+        .button-container {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        .button {
             background-color: #1DB954;
             color: white;
             border: none;
             padding: 1rem 2rem;
-            font-size: 1.1rem;
+            font-size: 1.2rem;
             border-radius: 4px;
             cursor: pointer;
             transition: background-color 0.2s;
-            margin-top: 1rem;
         }
-        .continue-button:hover {
+        .button:hover {
             background-color: #1ed760;
         }
-        .continue-button:disabled {
+        .button:disabled {
             background-color: #ccc;
             cursor: not-allowed;
         }
         .refresh-button {
-            background-color: #666;
-            color: white;
-            border: none;
-            padding: 0.5rem 1rem;
-            font-size: 0.9rem;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-bottom: 1rem;
+            background-color: #f8f8f8;
+            color: #333;
+            border: 2px solid #1DB954;
         }
         .refresh-button:hover {
-            background-color: #777;
+            background-color: #1DB954;
+            color: white;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Select a Genre</h1>
-        <button class="refresh-button" onclick="loadGenres()">Refresh Genres</button>
-        <div class="genre-selection">
-            <div class="genre-grid" id="genreGrid">
-                <!-- Genres will be loaded here -->
-            </div>
+        <h1>Select a Genre Group</h1>
+        <div class="genre-grid" id="genreGrid">
+            <!-- Genre tiles will be added here -->
         </div>
-        <button class="continue-button" id="continueButton" disabled onclick="handleContinue()">Continue</button>
+        <div class="button-container">
+            <button class="button refresh-button" onclick="loadGenres()">Refresh Genres</button>
+            <button class="button" id="continueButton" onclick="continueToEmbed()" disabled>Continue</button>
+        </div>
     </div>
 
     <script>
         let selectedGenre = null;
+
+        function createGenreTile(genre) {
+            const tile = document.createElement('div');
+            tile.className = 'genre-tile';
+            tile.onclick = () => selectGenre(genre, tile);
+            
+            const title = document.createElement('h2');
+            title.className = 'genre-title';
+            title.textContent = genre;
+            
+            tile.appendChild(title);
+            return tile;
+        }
+
+        function selectGenre(genre, tile) {
+            // Remove selected class from all tiles
+            document.querySelectorAll('.genre-tile').forEach(t => t.classList.remove('selected'));
+            // Add selected class to clicked tile
+            tile.classList.add('selected');
+            selectedGenre = genre;
+            // Enable continue button
+            document.getElementById('continueButton').disabled = false;
+        }
 
         function loadGenres() {
             fetch('/api/genres')
@@ -118,50 +146,33 @@
                     const grid = document.getElementById('genreGrid');
                     grid.innerHTML = '';
                     genres.forEach(genre => {
-                        const tile = document.createElement('div');
-                        tile.className = 'genre-tile';
-                        tile.textContent = genre.genre;
-                        tile.onclick = () => selectGenre(tile, genre);
-                        grid.appendChild(tile);
+                        grid.appendChild(createGenreTile(genre));
                     });
                 })
-                .catch(error => console.error('Error loading genres:', error));
+                .catch(error => console.error('Error:', error));
         }
 
-        function selectGenre(tile, genre) {
-            // Remove selection from previously selected tile
-            const previouslySelected = document.querySelector('.genre-tile.selected');
-            if (previouslySelected) {
-                previouslySelected.classList.remove('selected');
-            }
-            
-            // Select new tile
-            tile.classList.add('selected');
-            selectedGenre = genre;
-            
-            // Enable continue button
-            document.getElementById('continueButton').disabled = false;
-        }
-
-        function handleContinue() {
+        function continueToEmbed() {
             if (!selectedGenre) return;
-
-            // Get a random track for the selected genre
-            fetch('/api/track', {
+            
+            fetch('/api/set_genre', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ genre: selectedGenre.genre })
+                body: JSON.stringify({ genre: selectedGenre })
             })
             .then(response => response.json())
-            .then(track => {
-                // Store the track ID in localStorage
-                localStorage.setItem('selectedTrackId', track.track_id);
-                // Navigate to the embed page
+            .then(result => {
+                if (result.error) {
+                    throw new Error(result.error);
+                }
                 window.location.href = '/embed.html';
             })
-            .catch(error => console.error('Error getting track:', error));
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error setting genre. Please try again.');
+            });
         }
 
         // Load genres when page loads

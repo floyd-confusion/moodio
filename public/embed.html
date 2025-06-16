@@ -16,64 +16,400 @@
             min-height: 100vh;
             background-color: #f5f5f5;
         }
-        .container {
-            max-width: 800px;
-            padding: 2rem;
+        .main-container {
+            display: flex;
+            gap: 2rem;
+            max-width: 1600px;
+            width: 100%;
+        }
+        .player-container {
+            flex: 3;
             background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-radius: 16px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+        }
+        .liked-container {
+            flex: 2;
+            background-color: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            min-width: 300px;
         }
         h1 {
             color: #333;
-            margin-bottom: 1rem;
+            margin-bottom: 2rem;
+            text-align: center;
+            font-size: 2.5rem;
+        }
+        .liked-title {
+            color: #333;
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+            border-bottom: 2px solid #1DB954;
+            padding-bottom: 0.5rem;
+        }
+        .content-wrapper {
+            display: flex;
+            gap: 4rem;
+            align-items: flex-start;
+        }
+        .player-section {
+            flex: 2;
+        }
+        .info-section {
+            flex: 1;
+            min-width: 400px;
         }
         .spotify-embed {
-            margin-top: 2rem;
-            border-radius: 8px;
+            margin: 4rem 0;
+            border-radius: 16px;
             overflow: hidden;
         }
         .back-button {
             background-color: #1DB954;
             color: white;
             border: none;
-            padding: 0.5rem 1rem;
-            font-size: 1rem;
-            border-radius: 4px;
+            padding: 1rem 2rem;
+            font-size: 1.5rem;
+            border-radius: 8px;
             cursor: pointer;
             transition: background-color 0.2s;
-            margin-bottom: 1rem;
+            margin-bottom: 2rem;
         }
         .back-button:hover {
             background-color: #1ed760;
         }
+        .adjustment-buttons {
+            display: flex;
+            gap: 2rem;
+            margin: 4rem 0;
+            justify-content: center;
+        }
+        .adjust-button {
+            background-color: #f8f8f8;
+            border: 4px solid;
+            padding: 1.5rem 3rem;
+            font-size: 2.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            min-width: 150px;
+            justify-content: center;
+        }
+        .adjust-button.more {
+            border-color: #1DB954;
+            color: #1DB954;
+        }
+        .adjust-button.more:hover {
+            background-color: #1DB954;
+            color: white;
+        }
+        .adjust-button.less {
+            border-color: #e74c3c;
+            color: #e74c3c;
+        }
+        .adjust-button.less:hover {
+            background-color: #e74c3c;
+            color: white;
+        }
+        .like-button {
+            background-color: #f8f8f8;
+            border: 2px solid #1DB954;
+            color: #1DB954;
+            padding: 0.5rem 1rem;
+            font-size: 1.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 1rem;
+        }
+        .like-button:hover {
+            background-color: #1DB954;
+            color: white;
+        }
+        .like-button.liked {
+            background-color: #1DB954;
+            color: white;
+        }
+        .liked-tracks-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .liked-track-item {
+            padding: 0.75rem;
+            border-bottom: 1px solid #ddd;
+            font-size: 0.9rem;
+            color: #666;
+            transition: background-color 0.2s;
+        }
+        .liked-track-item:hover {
+            background-color: #f8f8f8;
+        }
+        .liked-track-item:last-child {
+            border-bottom: none;
+        }
+        .info-card {
+            background-color: #f8f8f8;
+            border-radius: 16px;
+            padding: 2rem;
+            margin-top: 4rem;
+        }
+        .info-title {
+            font-size: 2rem;
+            color: #333;
+            margin-bottom: 2rem;
+            border-bottom: 4px solid #1DB954;
+            padding-bottom: 1rem;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+        }
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .info-label {
+            font-size: 1.2rem;
+            color: #666;
+        }
+        .info-value {
+            font-size: 1.4rem;
+            color: #333;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <button class="back-button" onclick="window.location.href='/'">← Back to Genre Selection</button>
-        <h1>Spotify Preview</h1>
-        <div class="spotify-embed">
-            <iframe id="spotifyEmbed"
-                    width="100%" 
-                    height="352" 
-                    frameborder="0" 
-                    allowfullscreen="" 
-                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" 
-                    loading="lazy">
-            </iframe>
+    <div class="main-container">
+        <div class="player-container">
+            <button class="back-button" onclick="window.location.href='/'">← Back to Genre Selection</button>
+            <h1>Spotify Preview</h1>
+            <div class="content-wrapper">
+                <div class="player-section">
+                    <div class="spotify-embed">
+                        <iframe id="spotifyEmbed"
+                                width="100%" 
+                                height="456" 
+                                frameborder="0" 
+                                allowfullscreen="" 
+                                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" 
+                                loading="lazy">
+                        </iframe>
+                    </div>
+                    <div class="adjustment-buttons" id="adjustmentButtons">
+                        <!-- Adjustment buttons will be added here -->
+                    </div>
+                </div>
+                <div class="info-section">
+                    <div class="info-card">
+                        <h2 class="info-title">Track Information</h2>
+                        <div class="info-grid" id="trackInfo">
+                            <!-- Track info will be populated here -->
+                        </div>
+                    </div>
+                    <button class="like-button" id="likeButton" onclick="toggleLike()">👍</button>
+                </div>
+            </div>
+        </div>
+        <div class="liked-container">
+            <h2 class="liked-title">Liked Tracks</h2>
+            <ul class="liked-tracks-list" id="likedTracksList">
+                <!-- Liked tracks will be populated here -->
+            </ul>
         </div>
     </div>
 
     <script>
-        // Get the track ID from localStorage
-        const trackId = localStorage.getItem('selectedTrackId');
-        if (trackId) {
-            // Update the iframe src with the selected track
-            document.getElementById('spotifyEmbed').src = `https://open.spotify.com/embed/track/${trackId}`;
-        } else {
-            // If no track ID is found, redirect back to genre selection
-            window.location.href = '/';
+        let currentTrackId = null;
+        let likedTracks = new Set();
+
+        function updateLikeButton() {
+            const likeButton = document.getElementById('likeButton');
+            if (likedTracks.has(currentTrackId)) {
+                likeButton.classList.add('liked');
+            } else {
+                likeButton.classList.remove('liked');
+            }
         }
+
+        function toggleLike() {
+            if (!currentTrackId) return;
+
+            fetch('/api/likes', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ track_id: currentTrackId })
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (!result.error) {
+                    if (likedTracks.has(currentTrackId)) {
+                        likedTracks.delete(currentTrackId);
+                    } else {
+                        likedTracks.add(currentTrackId);
+                    }
+                    updateLikeButton();
+                    loadLikedTracks();
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function loadLikedTracks() {
+            fetch('/api/likes')
+                .then(response => response.json())
+                .then(data => {
+                    likedTracks = new Set(data.liked_tracks);
+                    updateLikeButton();
+                    
+                    const likedTracksList = document.getElementById('likedTracksList');
+                    likedTracksList.innerHTML = '';
+                    
+                    if (likedTracks.size === 0) {
+                        likedTracksList.innerHTML = '<li class="liked-track-item">No liked tracks yet</li>';
+                        return;
+                    }
+
+                    // Get track details for each liked track
+                    Promise.all(Array.from(likedTracks).map(trackId => 
+                        fetch(`/api/track/${trackId}`)
+                            .then(response => response.json())
+                            .catch(() => null)
+                    ))
+                    .then(tracks => {
+                        tracks.filter(track => track).forEach(track => {
+                            const li = document.createElement('li');
+                            li.className = 'liked-track-item';
+                            li.textContent = `${track.track_name} - ${track.artist_name}`;
+                            likedTracksList.appendChild(li);
+                        });
+                    });
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        // Parameter mapping with emojis
+        const paramMap = {
+            0: ['danceability', 'less', '💃', '🔻'],
+            1: ['danceability', 'more', '💃', '🔺'],
+            2: ['energy', 'less', '⚡', '🔻'],
+            3: ['energy', 'more', '⚡', '🔺'],
+            4: ['speechiness', 'less', '🗣️', '🔻'],
+            5: ['speechiness', 'more', '🗣️', '🔺'],
+            6: ['valence', 'less', '🙂', '🔻'],
+            7: ['valence', 'more', '🙂', '🔺'],
+            8: ['tempo', 'less', '⏱️', '🔻'],
+            9: ['tempo', 'more', '⏱️', '🔺']
+        };
+
+        function formatValue(value) {
+            if (typeof value === 'number') {
+                return value.toFixed(2);
+            }
+            return value;
+        }
+
+        function updateTrackInfo(track) {
+            const infoGrid = document.getElementById('trackInfo');
+            const infoItems = [
+                { label: 'Track Name', value: track.track_name },
+                { label: 'Artist', value: track.artist_name },
+                { label: 'Genre', value: track.genre },
+                { label: 'Danceability', value: track.danceability },
+                { label: 'Energy', value: track.energy },
+                { label: 'Speechiness', value: track.speechiness },
+                { label: 'Valence', value: track.valence },
+                { label: 'Tempo', value: `${track.tempo} BPM` }
+            ];
+
+            infoGrid.innerHTML = infoItems.map(item => `
+                <div class="info-item">
+                    <span class="info-label">${item.label}</span>
+                    <span class="info-value">${formatValue(item.value)}</span>
+                </div>
+            `).join('');
+        }
+
+        function createAdjustmentButtons() {
+            // Get random keys from paramMap
+            const keys = Object.keys(paramMap);
+            const randomKeys = keys.sort(() => 0.5 - Math.random()).slice(0, 3);
+            
+            const buttonsContainer = document.getElementById('adjustmentButtons');
+            buttonsContainer.innerHTML = '';
+            
+            randomKeys.forEach(key => {
+                const [param, direction, emoji, arrow] = paramMap[key];
+                const button = document.createElement('button');
+                button.className = `adjust-button ${direction}`;
+                button.innerHTML = `
+                    <span>${emoji}</span>
+                    <span>${arrow}</span>
+                `;
+                button.onclick = () => adjustPool(key);
+                buttonsContainer.appendChild(button);
+            });
+        }
+
+        function adjustPool(adjustment) {
+            fetch('/api/adjust_pool', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ adjustment: parseInt(adjustment) })
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (!result.error) {
+                    return fetch('/api/track');
+                }
+                throw new Error(result.error);
+            })
+            .then(response => response.json())
+            .then(track => {
+                currentTrackId = track.track_id;
+                document.getElementById('spotifyEmbed').src = `https://open.spotify.com/embed/track/${track.track_id}?autoplay=1`;
+                updateTrackInfo(track);
+                updateLikeButton();
+                createAdjustmentButtons();
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function loadInitialTrack() {
+            fetch('/api/track')
+                .then(response => response.json())
+                .then(track => {
+                    if (track.error) {
+                        throw new Error(track.error);
+                    }
+                    currentTrackId = track.track_id;
+                    document.getElementById('spotifyEmbed').src = `https://open.spotify.com/embed/track/${track.track_id}?autoplay=1`;
+                    updateTrackInfo(track);
+                    updateLikeButton();
+                    createAdjustmentButtons();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    window.location.href = '/';
+                });
+        }
+
+        // Load initial track and liked tracks
+        loadInitialTrack();
+        loadLikedTracks();
     </script>
 </body>
 </html> 
