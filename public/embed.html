@@ -127,6 +127,7 @@
             cursor: pointer;
             transition: all 0.2s;
             margin-top: 1rem;
+            flex: 1;
         }
         .like-button:hover {
             background-color: #1DB954;
@@ -186,6 +187,11 @@
             color: #333;
             font-weight: 500;
         }
+        .button-container {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
     </style>
 </head>
 <body>
@@ -216,7 +222,10 @@
                             <!-- Track info will be populated here -->
                         </div>
                     </div>
-                    <button class="like-button" id="likeButton" onclick="toggleLike()">👍</button>
+                    <div class="button-container">
+                        <button class="like-button" id="likeButton" onclick="toggleLike()">👍</button>
+                        <button class="like-button" id="nextButton" onclick="loadInitialTrack()">Next</button>
+                    </div>
                 </div>
             </div>
         </div>
