@@ -10,17 +10,73 @@
             line-height: 1.6;
             margin: 0;
             padding: 2rem;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
             background-color: #f5f5f5;
+        }
+        .layout-container {
+            max-width: 1600px;
+            margin: 0 auto;
         }
         .main-container {
             display: flex;
             gap: 2rem;
-            max-width: 1600px;
+            margin-bottom: 2rem;
+        }
+        .adjustment-container {
+            background-color: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+        }
+        .adjustment-content {
+            display: flex;
+            gap: 2rem;
+            align-items: flex-start;
+        }
+        .adjustment-left {
+            flex: 2;
+        }
+        .adjustment-right {
+            flex: 1;
+            min-width: 300px;
+        }
+        .pool-stats-container {
+            background-color: #f8f9fa;
+            border: 2px solid #6c757d;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+        .reset-button {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
             width: 100%;
+        }
+        .reset-button:hover {
+            background-color: #c82333;
+        }
+        .control-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-bottom: 2rem;
+        }
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .control-label {
+            font-weight: 600;
+            color: #333;
+            min-width: 100px;
         }
         .player-container {
             flex: 3;
@@ -36,6 +92,63 @@
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             padding: 2rem;
             min-width: 300px;
+        }
+        .adjustment-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0 0 0;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .adjustment-table th {
+            background-color: #1DB954;
+            color: white;
+            padding: 0.75rem 0.5rem;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        .adjustment-table td {
+            padding: 0.75rem 0.5rem;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+            font-size: 0.85rem;
+        }
+        .adjustment-table tr:last-child td {
+            border-bottom: none;
+        }
+        .metric-name {
+            font-weight: 600;
+            color: #333;
+        }
+        .adjustment-btn {
+            background-color: #f8f8f8;
+            border: 2px solid;
+            padding: 0.5rem 1rem;
+            margin: 0 0.25rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: all 0.2s;
+            min-width: 40px;
+        }
+        .adjustment-btn.decrease {
+            border-color: #e74c3c;
+            color: #e74c3c;
+        }
+        .adjustment-btn.decrease:hover {
+            background-color: #e74c3c;
+            color: white;
+        }
+        .adjustment-btn.increase {
+            border-color: #1DB954;
+            color: #1DB954;
+        }
+        .adjustment-btn.increase:hover {
+            background-color: #1DB954;
+            color: white;
         }
         h1 {
             color: #333;
@@ -195,45 +308,119 @@
     </style>
 </head>
 <body>
-    <div class="main-container">
-        <div class="player-container">
-            <button class="back-button" onclick="window.location.href='/'">← Back to Genre Selection</button>
-            <h1>Spotify Preview</h1>
-            <div class="content-wrapper">
-                <div class="player-section">
-                    <div class="spotify-embed">
-                        <iframe id="spotifyEmbed"
-                                width="100%" 
-                                height="456" 
-                                frameborder="0" 
-                                allowfullscreen="" 
-                                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" 
-                                loading="lazy">
-                        </iframe>
-                    </div>
-                    <div class="adjustment-buttons" id="adjustmentButtons">
-                        <!-- Adjustment buttons will be added here -->
-                    </div>
-                </div>
-                <div class="info-section">
-                    <div class="info-card">
-                        <h2 class="info-title">Track Information</h2>
-                        <div class="info-grid" id="trackInfo">
-                            <!-- Track info will be populated here -->
+    <div class="layout-container">
+        <!-- Main Controls and Liked Tracks Frame -->
+        <div class="main-container">
+            <div class="player-container">
+                <button class="back-button" onclick="window.location.href='/'">← Back to Genre Selection</button>
+                <h1>Spotify Preview</h1>
+                <div class="content-wrapper">
+                    <div class="player-section">
+                        <div class="spotify-embed">
+                            <iframe id="spotifyEmbed"
+                                    width="100%" 
+                                    height="456" 
+                                    frameborder="0" 
+                                    allowfullscreen="" 
+                                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" 
+                                    loading="lazy">
+                            </iframe>
                         </div>
                     </div>
-                    <div class="button-container">
-                        <button class="like-button" id="likeButton" onclick="toggleLike()">👍</button>
-                        <button class="like-button" id="nextButton" onclick="loadInitialTrack()">Next</button>
+                    <div class="info-section">
+                        <div class="info-card">
+                            <h2 class="info-title">Track Information</h2>
+                            <div class="info-grid" id="trackInfo">
+                                <!-- Track info will be populated here -->
+                            </div>
+                        </div>
+                        <div class="button-container">
+                            <button class="like-button" id="likeButton" onclick="toggleLike()">👍</button>
+                            <button class="like-button" id="nextButton" onclick="loadInitialTrack()">Next</button>
+                        </div>
                     </div>
                 </div>
             </div>
+            <div class="liked-container">
+                <h2 class="liked-title">Liked Tracks</h2>
+                <ul class="liked-tracks-list" id="likedTracksList">
+                    <!-- Liked tracks will be populated here -->
+                </ul>
+            </div>
         </div>
-        <div class="liked-container">
-            <h2 class="liked-title">Liked Tracks</h2>
-            <ul class="liked-tracks-list" id="likedTracksList">
-                <!-- Liked tracks will be populated here -->
-            </ul>
+        
+        <!-- Adjustment Controls Frame -->
+        <div class="adjustment-container">
+            <h2 style="margin-top: 0; color: #333; text-align: center;">🎛️ Adjustment Controls</h2>
+            <div class="adjustment-content">
+                <div class="adjustment-left">
+                    <!-- Simple Control Buttons -->
+                    <div class="control-buttons">
+                        <div class="control-row">
+                            <span class="control-label">Danceability:</span>
+                            <button class="adjustment-btn decrease" onclick="adjustPool(0)">-</button>
+                            <button class="adjustment-btn increase" onclick="adjustPool(1)">+</button>
+                        </div>
+                        <div class="control-row">
+                            <span class="control-label">Energy:</span>
+                            <button class="adjustment-btn decrease" onclick="adjustPool(2)">-</button>
+                            <button class="adjustment-btn increase" onclick="adjustPool(3)">+</button>
+                        </div>
+                        <div class="control-row">
+                            <span class="control-label">Speechiness:</span>
+                            <button class="adjustment-btn decrease" onclick="adjustPool(4)">-</button>
+                            <button class="adjustment-btn increase" onclick="adjustPool(5)">+</button>
+                        </div>
+                        <div class="control-row">
+                            <span class="control-label">Valence:</span>
+                            <button class="adjustment-btn decrease" onclick="adjustPool(6)">-</button>
+                            <button class="adjustment-btn increase" onclick="adjustPool(7)">+</button>
+                        </div>
+                        <div class="control-row">
+                            <span class="control-label">Tempo:</span>
+                            <button class="adjustment-btn decrease" onclick="adjustPool(8)">-</button>
+                            <button class="adjustment-btn increase" onclick="adjustPool(9)">+</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Adjustment History Table -->
+                    <h3 style="margin-top: 2rem; color: #333;">📋 Adjustment History</h3>
+                    <table class="adjustment-table">
+                        <thead>
+                            <tr>
+                                <th rowspan="2">#</th>
+                                <th rowspan="2">Adjustment</th>
+                                <th rowspan="2">Time</th>
+                                <th colspan="2">Pool Size</th>
+                                <th colspan="5">Average Features After</th>
+                            </tr>
+                            <tr>
+                                <th>Before</th>
+                                <th>After</th>
+                                <th>Dance</th>
+                                <th>Energy</th>
+                                <th>Speech</th>
+                                <th>Valence</th>
+                                <th>Tempo</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adjustmentHistoryTable">
+                            <tr>
+                                <td colspan="10" style="text-align: center; color: #666; font-style: italic;">No adjustments made yet</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="adjustment-right">
+                    <div class="pool-stats-container">
+                        <h3 style="margin-top: 0; color: #333;">📊 Pool Stats</h3>
+                        <div id="poolStats">
+                            <!-- Pool statistics will be populated here -->
+                        </div>
+                    </div>
+                    <button class="reset-button" onclick="resetPool()">🔄 Reset Pool</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -275,6 +462,119 @@
             .catch(error => console.error('Error:', error));
         }
 
+        function loadAdjustmentHistory() {
+            fetch('/api/adjustment_history')
+                .then(response => response.json())
+                .then(data => {
+                    const historyTable = document.getElementById('adjustmentHistoryTable');
+                    const adjustments = data.adjustments || [];
+                    
+                    if (adjustments.length === 0) {
+                        historyTable.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #666; font-style: italic;">No adjustments made yet</td></tr>';
+                        return;
+                    }
+                    
+                    // Map adjustment IDs to readable format
+                    const paramMap = {
+                        0: 'Danceability ↓', 1: 'Danceability ↑',
+                        2: 'Energy ↓', 3: 'Energy ↑', 
+                        4: 'Speechiness ↓', 5: 'Speechiness ↑',
+                        6: 'Valence ↓', 7: 'Valence ↑',
+                        8: 'Tempo ↓', 9: 'Tempo ↑'
+                    };
+                    
+                    historyTable.innerHTML = adjustments.map((adj, index) => {
+                        const time = new Date(adj.timestamp).toLocaleTimeString();
+                        const adjustmentText = paramMap[adj.adjustment_id] || `${adj.parameter} ${adj.direction}`;
+                        const poolBefore = adj.pool_size_before ? adj.pool_size_before.toLocaleString() : 'N/A';
+                        const poolAfter = adj.pool_size_after ? adj.pool_size_after.toLocaleString() : 'N/A';
+                        
+                        // Get average stats after the adjustment
+                        const stats = adj.avg_stats_after || {};
+                        const dance = stats.danceability ? stats.danceability.toFixed(3) : 'N/A';
+                        const energy = stats.energy ? stats.energy.toFixed(3) : 'N/A';
+                        const speech = stats.speechiness ? stats.speechiness.toFixed(3) : 'N/A';
+                        const valence = stats.valence ? stats.valence.toFixed(3) : 'N/A';
+                        const tempo = stats.tempo ? Math.round(stats.tempo) : 'N/A';
+                        
+                        return `
+                            <tr>
+                                <td>${index + 1}</td>
+                                <td>${adjustmentText}</td>
+                                <td>${time}</td>
+                                <td>${poolBefore}</td>
+                                <td>${poolAfter}</td>
+                                <td>${dance}</td>
+                                <td>${energy}</td>
+                                <td>${speech}</td>
+                                <td>${valence}</td>
+                                <td>${tempo}</td>
+                            </tr>
+                        `;
+                    }).join('');
+                })
+                .catch(error => {
+                    console.error('Error loading adjustment history:', error);
+                    document.getElementById('adjustmentHistoryTable').innerHTML = 
+                        '<tr><td colspan="10" style="text-align: center; color: #e74c3c;">Error loading history</td></tr>';
+                });
+        }
+
+        function loadPoolStats() {
+            fetch('/api/pool_stats')
+                .then(response => response.json())
+                .then(stats => {
+                    const poolStatsDiv = document.getElementById('poolStats');
+                    poolStatsDiv.innerHTML = `
+                        <div style="margin-bottom: 0.5rem;"><strong>Total DB:</strong> ${stats.total_tracks.toLocaleString()}</div>
+                        <div style="margin-bottom: 0.5rem;"><strong>Original Pool:</strong> ${stats.original_pool_size.toLocaleString()}</div>
+                        <div style="margin-bottom: 0.5rem;"><strong>Current Pool:</strong> ${stats.current_pool_size.toLocaleString()}</div>
+                        <div style="margin-bottom: 0.5rem;"><strong>Reduction:</strong> ${stats.pool_reduction_pct}%</div>
+                        <hr style="margin: 0.5rem 0; border-color: #999;">
+                        <div style="font-size: 0.8rem; color: #666;">
+                            <div><strong>Avg Pool Features:</strong></div>
+                            <div>Dance: ${stats.avg_stats.danceability || 'N/A'}</div>
+                            <div>Energy: ${stats.avg_stats.energy || 'N/A'}</div>
+                            <div>Speech: ${stats.avg_stats.speechiness || 'N/A'}</div>
+                            <div>Valence: ${stats.avg_stats.valence || 'N/A'}</div>
+                            <div>Tempo: ${stats.avg_stats.tempo || 'N/A'}</div>
+                        </div>
+                    `;
+                })
+                .catch(error => {
+                    console.error('Error loading pool stats:', error);
+                    document.getElementById('poolStats').innerHTML = '<div style="color: #e74c3c;">Error loading stats</div>';
+                });
+        }
+
+        function resetPool() {
+            if (!confirm('Reset pool to original state? This will clear all adjustments.')) {
+                return;
+            }
+            
+            fetch('/api/clear_adjustments', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (!result.error) {
+                    loadPoolStats();
+                    loadAdjustmentHistory();
+                    // Load a new track from the reset pool
+                    loadInitialTrack();
+                } else {
+                    alert('Error resetting pool: ' + result.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error resetting pool:', error);
+                alert('Error resetting pool');
+            });
+        }
+
         function loadLikedTracks() {
             fetch('/api/likes')
                 .then(response => response.json())
@@ -308,20 +608,6 @@
                 .catch(error => console.error('Error:', error));
         }
 
-        // Parameter mapping with emojis
-        const paramMap = {
-            0: ['danceability', 'less', '💃', '🔻'],
-            1: ['danceability', 'more', '💃', '🔺'],
-            2: ['energy', 'less', '⚡', '🔻'],
-            3: ['energy', 'more', '⚡', '🔺'],
-            4: ['speechiness', 'less', '🗣️', '🔻'],
-            5: ['speechiness', 'more', '🗣️', '🔺'],
-            6: ['valence', 'less', '🙂', '🔻'],
-            7: ['valence', 'more', '🙂', '🔺'],
-            8: ['tempo', 'less', '⏱️', '🔻'],
-            9: ['tempo', 'more', '⏱️', '🔺']
-        };
-
         function formatValue(value) {
             if (typeof value === 'number') {
                 return value.toFixed(2);
@@ -350,27 +636,6 @@
             `).join('');
         }
 
-        function createAdjustmentButtons() {
-            // Get random keys from paramMap
-            const keys = Object.keys(paramMap);
-            const randomKeys = keys.sort(() => 0.5 - Math.random()).slice(0, 3);
-            
-            const buttonsContainer = document.getElementById('adjustmentButtons');
-            buttonsContainer.innerHTML = '';
-            
-            randomKeys.forEach(key => {
-                const [param, direction, emoji, arrow] = paramMap[key];
-                const button = document.createElement('button');
-                button.className = `adjust-button ${direction}`;
-                button.innerHTML = `
-                    <span>${emoji}</span>
-                    <span>${arrow}</span>
-                `;
-                button.onclick = () => adjustPool(key);
-                buttonsContainer.appendChild(button);
-            });
-        }
-
         function adjustPool(adjustment) {
             fetch('/api/adjust_pool', {
                 method: 'POST',
@@ -392,7 +657,8 @@
                 document.getElementById('spotifyEmbed').src = `https://open.spotify.com/embed/track/${track.track_id}?autoplay=1`;
                 updateTrackInfo(track);
                 updateLikeButton();
-                createAdjustmentButtons();
+                loadPoolStats(); // Refresh pool stats after adjustment
+                loadAdjustmentHistory(); // Refresh adjustment history
             })
             .catch(error => console.error('Error:', error));
         }
@@ -408,7 +674,7 @@
                     document.getElementById('spotifyEmbed').src = `https://open.spotify.com/embed/track/${track.track_id}?autoplay=1`;
                     updateTrackInfo(track);
                     updateLikeButton();
-                    createAdjustmentButtons();
+                    loadPoolStats(); // Load pool stats with new track
                 })
                 .catch(error => {
                     console.error('Error:', error);
@@ -416,9 +682,10 @@
                 });
         }
 
-        // Load initial track and liked tracks
+        // Load initial track, liked tracks, and adjustment history
         loadInitialTrack();
         loadLikedTracks();
+        loadAdjustmentHistory();
     </script>
 </body>
 </html> 
