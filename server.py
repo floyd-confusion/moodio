@@ -88,12 +88,15 @@ class Dataset:
         return pool_size > 0
     
     def get_random_track(self):
-        """Get a random track from the current pool"""
-        if self.current_pool.empty:
+        """Get a random track from the current pool, fallback to original pool if empty"""
+        # Use current pool if it has tracks, otherwise use original pool (genre pool)
+        pool_to_use = self.current_pool if not self.current_pool.empty else self.original_pool
+        
+        if pool_to_use is None or pool_to_use.empty:
             logger.warning("Attempted to get track from empty pool")
             return None
         
-        track = self.current_pool.sample(n=1).iloc[0]
+        track = pool_to_use.sample(n=1).iloc[0]
         logger.debug(f"Selected track: {track['track_name']} by {track['artists']}")
         return {
             'track_id': track['track_id'],
