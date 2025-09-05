@@ -3,7 +3,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 from flask import session
-from src.filters import FILTER_CONFIG, FILTER_REGISTRY, FILTER_RADIUS
+from src.filters import FILTER_REGISTRY, FILTER_RADIUS, create_adjusted_filter, FILTER_RADIUS_TEMPO
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ class Dataset:
         # Fresh injection system
         self.fresh_injection_ratio = 0.7  # 30% old tracks, 70% new tracks (default)
         self.pool_size_multiplier = 2.0  # Target size = filter_result_size * multiplier
-        self.radius_multiplier_factor = 1.0  # How much to scale radius when reduction > 50%
+        self.radius_multiplier_factor = 0.5  # How much to scale radius when reduction > 50%
 
         # Track selection strategy
         self.use_average_centered_selection = True  # Avoid extremes by selecting near averages
@@ -82,12 +82,12 @@ class Dataset:
     def set_genre_pool(self, genre_group):
         """Set the genre pool from the selected genre group and reset system"""
         logger.info(f"Setting genre pool for: {genre_group}")
-        if genre_group not in self.genre_groups:
+        if genre_group not in genre_groups:
             logger.warning(f"Invalid genre group: {genre_group}")
             return False
 
         # Get all genres in the selected group
-        group_genres = self.genre_groups[genre_group]
+        group_genres = genre_groups[genre_group]
 
         # Set genre pool (immutable starting point)
         self.genre_pool = self.df[self.df['track_genre'].isin(group_genres)].copy()
@@ -168,8 +168,8 @@ class Dataset:
             pool_averages[feature] = unshown_pool[feature].mean()
 
         # Filter tracks that are within radius of averages (same logic as filters use)
-        radius = FILTER_CONFIG['radius']  # 0.1
-        tempo_radius_factor = FILTER_CONFIG['tempo_radius_factor']  # 0.15
+        radius = FILTER_RADIUS  # 0.1
+        tempo_radius_factor = FILTER_RADIUS_TEMPO # 0.15
 
         candidates = unshown_pool.copy()
 
@@ -299,33 +299,6 @@ class Dataset:
             return 0.0
         return (pool_before - pool_after) / pool_before
 
-    def _get_adjusted_filter_config(self, reduction_rate):
-        """Get filter config with adjusted radius if reduction rate >= 50%"""
-        if reduction_rate >= 0.5:
-            # Apply static multiplier when reduction is 50% or more
-            return {
-                'radius': FILTER_CONFIG['radius'] * self.radius_multiplier_factor,
-                'tempo_radius_factor': FILTER_CONFIG['tempo_radius_factor'] * self.radius_multiplier_factor,
-                'quantile_threshold': FILTER_CONFIG['quantile_threshold']
-            }
-        return FILTER_CONFIG.copy()
-
-    def _apply_filter_with_config(self, filter_func, pool, config):
-        """Apply filter function with temporarily modified FILTER_CONFIG"""
-        # Store original config
-        original_config = FILTER_CONFIG.copy()
-
-        try:
-            # Temporarily modify global FILTER_CONFIG
-            FILTER_CONFIG.update(config)
-            # Apply filter with modified config
-            result = filter_func(pool)
-            return result
-        finally:
-            # Always restore original config
-            FILTER_CONFIG.clear()
-            FILTER_CONFIG.update(original_config)
-
     def _mix_pools(self, old_pool, new_filtered_result):
         """Mix old pool (30%) with new filtered result (70%) based on filtered result size"""
         if new_filtered_result.empty:
@@ -410,14 +383,10 @@ class Dataset:
             reduction_rate = self._calculate_reduction_rate(pool_before, pool_after)
 
             # Apply filter with adjusted radius if reduction > 50%
-            if reduction_rate > 0.5:
-                adjusted_config = self._get_adjusted_filter_config(reduction_rate)
-                filtered_result = self._apply_filter_with_config(filter_func, current_pool.copy(), adjusted_config)
-                logger.debug(
-                    f"Applied {filter_name} with {reduction_rate:.1%} reduction rate using adjusted radius (multiplier: {self.radius_multiplier_factor})")
-            else:
-                filtered_result = test_result
-                logger.debug(f"Applied {filter_name} with {reduction_rate:.1%} reduction rate using standard radius")
+            multiplier = self.radius_multiplier_factor if reduction_rate > 0.5 else 1.0
+            adjusted_filter = create_adjusted_filter(filter_func, multiplier)
+            filtered_result = adjusted_filter(current_pool.copy())
+            logger.debug(f"Applied {filter_name} with {reduction_rate:.1%} reduction rate using {multiplier}x radius multiplier")
 
             if filtered_result.empty:
                 logger.warning(f"Pool became empty after filter {i + 1}: {filter_name}, skipping remaining filters")
