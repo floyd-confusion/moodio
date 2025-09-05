@@ -193,6 +193,50 @@ def filter_decrease_speechiness(genre_pool):
     logger.debug(f"Speechiness decrease filter: {len(genre_pool)} → {len(filtered)} tracks (threshold: {target_max:.3f})")
     return filtered
 
+def filter_increase_tempo(genre_pool):
+    """Filter tracks with higher tempo than the pool average
+    
+    Args:
+        genre_pool (pd.DataFrame): The original genre pool to filter
+        
+    Returns:
+        pd.DataFrame: Filtered tracks with higher tempo
+    """
+    if genre_pool.empty:
+        logger.warning("Empty genre pool provided to filter_increase_tempo")
+        return genre_pool
+    
+    pool_mean = genre_pool['tempo'].mean()
+    adjustment = pool_mean * FILTER_CONFIG['tempo_radius_factor']
+    target_min = pool_mean + adjustment
+    
+    filtered = genre_pool[genre_pool['tempo'] >= target_min]
+    
+    logger.debug(f"Tempo increase filter: {len(genre_pool)} → {len(filtered)} tracks (threshold: {target_min:.1f})")
+    return filtered
+
+def filter_decrease_tempo(genre_pool):
+    """Filter tracks with lower tempo than the pool average
+    
+    Args:
+        genre_pool (pd.DataFrame): The original genre pool to filter
+        
+    Returns:
+        pd.DataFrame: Filtered tracks with lower tempo
+    """
+    if genre_pool.empty:
+        logger.warning("Empty genre pool provided to filter_decrease_tempo")
+        return genre_pool
+    
+    pool_mean = genre_pool['tempo'].mean()
+    adjustment = pool_mean * FILTER_CONFIG['tempo_radius_factor']
+    target_max = pool_mean - adjustment
+    
+    filtered = genre_pool[genre_pool['tempo'] <= target_max]
+    
+    logger.debug(f"Tempo decrease filter: {len(genre_pool)} → {len(filtered)} tracks (threshold: {target_max:.1f})")
+    return filtered
+
 # Filter registry mapping filter names to functions
 FILTER_REGISTRY = {
     'filter_increase_danceability': filter_increase_danceability,
@@ -203,6 +247,31 @@ FILTER_REGISTRY = {
     'filter_decrease_energy': filter_decrease_energy,
     'filter_increase_speechiness': filter_increase_speechiness,
     'filter_decrease_speechiness': filter_decrease_speechiness,
+    'filter_increase_tempo': filter_increase_tempo,
+    'filter_decrease_tempo': filter_decrease_tempo,
+}
+
+music_filters = {
+    "Like this artist!": "filter_more_from_artist",
+    "Try someone new": "filter_new_artist",
+    "More from this album?": "filter_more_from_album",
+    "Let’s get groovy": "filter_increase_danceability",
+    "Take the groove down": "filter_decrease_danceability",
+    "Crank up the energy": "filter_increase_energy",
+    "Keep it chill": "filter_decrease_energy",
+    "Talk to me — more lyrics": "filter_increase_speechiness",
+    "Less chatter, more vibe": "filter_decrease_speechiness",
+    "Play more acoustic stuff": "filter_include_acoustic",
+    "No unplugged right now": "filter_exclude_acoustic",
+    "Go full instrumental": "filter_include_instrumental",
+    "Bring back the vocals": "filter_exclude_instrumental",
+    "Give me that live feel": "filter_include_live",
+    "Studio only, please": "filter_exclude_live",
+    "Make it happier": "filter_increase_valence",
+    "Go darker, moodier": "filter_decrease_valence",
+    "Pick up the pace": "filter_increase_tempo",
+    "Slow it down": "filter_decrease_tempo",
+    "Keep the genre vibe": "filter_maintain_genre",
 }
 
 def get_filter_function(filter_name):

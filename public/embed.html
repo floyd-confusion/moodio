@@ -527,8 +527,10 @@
                     const poolStatsDiv = document.getElementById('poolStats');
                     poolStatsDiv.innerHTML = `
                         <div style="margin-bottom: 0.5rem;"><strong>Total DB:</strong> ${stats.total_tracks.toLocaleString()}</div>
-                        <div style="margin-bottom: 0.5rem;"><strong>Original Pool:</strong> ${stats.original_pool_size.toLocaleString()}</div>
-                        <div style="margin-bottom: 0.5rem;"><strong>Current Pool:</strong> ${stats.current_pool_size.toLocaleString()}</div>
+                        <div style="margin-bottom: 0.5rem;"><strong>Genre Pool:</strong> ${stats.genre_pool_size.toLocaleString()}</div>
+                        <div style="margin-bottom: 0.5rem;"><strong>Playback Pool:</strong> ${stats.playback_pool_size.toLocaleString()}</div>
+                        <div style="margin-bottom: 0.5rem;"><strong>Filters Applied:</strong> ${stats.filters_applied}</div>
+                        <div style="margin-bottom: 0.5rem;"><strong>Tracks Shown:</strong> ${stats.tracks_shown || 0}</div>
                         <div style="margin-bottom: 0.5rem;"><strong>Reduction:</strong> ${stats.pool_reduction_pct}%</div>
                         <hr style="margin: 0.5rem 0; border-color: #999;">
                         <div style="font-size: 0.8rem; color: #666;">
