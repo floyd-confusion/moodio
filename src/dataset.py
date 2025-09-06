@@ -64,6 +64,13 @@ class Dataset:
         self.fresh_injection_ratio = 0.7  # 30% old tracks, 70% new tracks (default)
         self.pool_size_multiplier = 2.0  # Target size = filter_result_size * multiplier
         self.radius_multiplier_factor = 0.5  # How much to scale radius when reduction > 50%
+        
+        # Cross-genre expansion system
+        self.minimum_pool_threshold = 50  # Minimum tracks required before cross-genre expansion
+        self.cross_genre_expansion_ratio = 0.3  # How much of expansion should be cross-genre
+        
+        # Audio features for calculations
+        self.audio_features = ['danceability', 'energy', 'speechiness', 'valence', 'tempo']
 
         # Track selection strategy
         self.use_average_centered_selection = True  # Avoid extremes by selecting near averages
@@ -162,9 +169,8 @@ class Dataset:
         logger.debug(f"Track selection pool: {len(unshown_pool)} unshown tracks (out of {len(pool)} total)")
 
         # Calculate pool averages
-        audio_features = ['danceability', 'energy', 'speechiness', 'valence', 'tempo']
         pool_averages = {}
-        for feature in audio_features:
+        for feature in self.audio_features:
             pool_averages[feature] = unshown_pool[feature].mean()
 
         # Filter tracks that are within radius of averages (same logic as filters use)
@@ -174,7 +180,7 @@ class Dataset:
         candidates = unshown_pool.copy()
 
         # Apply radius constraints for each feature
-        for feature in audio_features:
+        for feature in self.audio_features:
             avg_value = pool_averages[feature]
 
             if feature == 'tempo':
@@ -201,7 +207,7 @@ class Dataset:
             distances = []
             for idx, track in unshown_pool.iterrows():
                 distance = 0
-                for feature in audio_features:
+                for feature in self.audio_features:
                     if feature == 'tempo':
                         # Normalize tempo for distance calculation
                         track_norm = (track[feature] - 60) / (200 - 60)
@@ -402,23 +408,92 @@ class Dataset:
 
             logger.info(f"Filter {i + 1} complete: {filter_name} -> mixed pool has {len(self.playback_pool)} tracks")
 
+        # Check if we need cross-genre expansion after all filters
+        if (self.playback_pool is not None and 
+            len(self.playback_pool) < self.minimum_pool_threshold):
+            self._expand_with_cross_genre()
+
         # Ensure we have a valid playback pool
         if self.playback_pool is None or self.playback_pool.empty:
             logger.warning("Playback pool is empty after all filters, falling back to genre pool")
             self.playback_pool = self.genre_pool.copy()
 
-    def _get_pool_averages(self):
-        """Get average audio features for the current playback pool"""
-        if self.playback_pool is None or self.playback_pool.empty:
+    def _expand_with_cross_genre(self):
+        """Expand current pool using dataset averages within filter radius from total pool"""
+        needed_tracks = self.minimum_pool_threshold - len(self.playback_pool)
+        
+        if needed_tracks <= 0:
+            return
+        
+        logger.info(f"Expanding pool to minimum {self.minimum_pool_threshold} tracks using dataset averages")
+        
+        # Select tracks from entire dataset within radius of dataset averages
+        dataset_averages = self._get_pool_averages(self.df)
+        selected_tracks = self._select_tracks_near_averages(self.df, needed_tracks, dataset_averages)
+        
+        if not selected_tracks.empty:
+            # Add selected tracks to playback pool
+            self.playback_pool = pd.concat([self.playback_pool, selected_tracks], ignore_index=True)
+            # Shuffle to mix new tracks with existing tracks
+            self.playback_pool = self.playback_pool.sample(frac=1.0).reset_index(drop=True)
+            
+            logger.info(f"Cross-genre expansion complete: added {len(selected_tracks)} tracks near dataset averages (final size: {len(self.playback_pool)})")
+        else:
+            logger.warning("No tracks found within radius of dataset averages")
+    
+    def _select_tracks_near_averages(self, pool, needed_count, target_averages):
+        """Select tracks within filter radius of target averages"""
+        candidates = pool.copy()
+        
+        # Apply radius constraints for each feature (same logic as average-centered selection)
+        for feature in self.audio_features:
+            if feature not in target_averages:
+                continue
+                
+            avg_value = target_averages[feature]
+            
+            if feature == 'tempo':
+                # Use percentage-based radius for tempo
+                tempo_radius = avg_value * FILTER_RADIUS_TEMPO
+                min_val = avg_value - tempo_radius
+                max_val = avg_value + tempo_radius
+            else:
+                # Use fixed radius for 0-1 scale features
+                min_val = avg_value - FILTER_RADIUS
+                max_val = avg_value + FILTER_RADIUS
+            
+            # Filter candidates to stay within radius
+            candidates = candidates[
+                (candidates[feature] >= min_val) &
+                (candidates[feature] <= max_val)
+            ]
+
+        
+        # Random sample from candidates within radius
+        if not candidates.empty:
+            sample_size = min(needed_count, len(candidates))
+            selected_tracks = candidates.sample(n=sample_size)
+            logger.debug(f"Selected {len(selected_tracks)} tracks within radius of dataset averages")
+            return selected_tracks
+        else:
+            logger.warning("No tracks found within radius, returning empty DataFrame")
+            return pd.DataFrame()
+
+    def _get_pool_averages(self, pool=None):
+        """Get average audio features for the specified pool (defaults to current playback pool)"""
+        target_pool = pool if pool is not None else self.playback_pool
+        
+        if target_pool is None or target_pool.empty:
             return {}
 
-        return {
-            'danceability': round(self.playback_pool['danceability'].mean(), 3),
-            'energy': round(self.playback_pool['energy'].mean(), 3),
-            'speechiness': round(self.playback_pool['speechiness'].mean(), 3),
-            'valence': round(self.playback_pool['valence'].mean(), 3),
-            'tempo': round(self.playback_pool['tempo'].mean(), 1)
-        }
+        averages = {}
+        for feature in self.audio_features:
+            if feature == 'tempo':
+                averages[feature] = round(target_pool[feature].mean(), 1)
+            else:
+                averages[feature] = round(target_pool[feature].mean(), 3)
+        
+        return averages
 
     def add_liked_track(self, track_id):
         """Add a track to liked tracks"""
