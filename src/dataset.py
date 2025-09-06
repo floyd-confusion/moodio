@@ -71,11 +71,11 @@ class Dataset:
         
         # Audio features for calculations
         self.audio_features = ['danceability', 'energy', 'speechiness', 'valence', 'tempo']
+        self.controlled_features = []
 
         # Track selection strategy
         self.use_average_centered_selection = True  # Avoid extremes by selecting near averages
 
-        self.liked_tracks = set()  # Store liked track IDs
         self.shown_tracks = set()  # Store tracks that have been shown to avoid repetition
 
         # Legacy compatibility (deprecated)
@@ -373,10 +373,13 @@ class Dataset:
         # Start with genre pool for the first filter
         current_pool = self.genre_pool.copy()
 
+        controlled_features = []
         # Apply each filter one-by-one with mixing after each
         for i, filter_record in enumerate(self.filter_queue):
             filter_name = filter_record['filter_name']
             filter_func = FILTER_REGISTRY.get(filter_name)
+            filter_feature = filter_name.split('_')[2]
+            controlled_features.append(filter_feature) if filter_feature not in controlled_features else None
 
             if not filter_func:
                 logger.error(f"Filter function not found: {filter_name}")
@@ -409,28 +412,35 @@ class Dataset:
             logger.info(f"Filter {i + 1} complete: {filter_name} -> mixed pool has {len(self.playback_pool)} tracks")
 
         # Check if we need cross-genre expansion after all filters
-        if (self.playback_pool is not None and 
-            len(self.playback_pool) < self.minimum_pool_threshold):
-            self._expand_with_cross_genre()
+        if self.playback_pool is not None and len(self.playback_pool) < self.minimum_pool_threshold:
+            logger.debug(f"Pool requires cross-genre expansion: {len(self.playback_pool)}")
+            self._expand_with_cross_genre(controlled_features)
 
         # Ensure we have a valid playback pool
         if self.playback_pool is None or self.playback_pool.empty:
             logger.warning("Playback pool is empty after all filters, falling back to genre pool")
             self.playback_pool = self.genre_pool.copy()
 
-    def _expand_with_cross_genre(self):
+    def _expand_with_cross_genre(self, controlled_features):
         """Expand current pool using dataset averages within filter radius from total pool"""
+        dataset_averages = self._get_pool_averages(self.playback_pool)
+        logger.debug(f"Dataset averages before cross expansion: {dataset_averages}")
+
         needed_tracks = self.minimum_pool_threshold - len(self.playback_pool)
         
         if needed_tracks <= 0:
             return
         
         logger.info(f"Expanding pool to minimum {self.minimum_pool_threshold} tracks using dataset averages")
-        
+
+        # Select only by features that user affected
+        dataset_averages = {feature: dataset_averages[feature] for feature in controlled_features}
+
         # Select tracks from entire dataset within radius of dataset averages
-        dataset_averages = self._get_pool_averages(self.df)
         selected_tracks = self._select_tracks_near_averages(self.df, needed_tracks, dataset_averages)
-        
+
+        logger.debug(f"Selected averages: {self._get_pool_averages(selected_tracks)}")
+
         if not selected_tracks.empty:
             # Add selected tracks to playback pool
             self.playback_pool = pd.concat([self.playback_pool, selected_tracks], ignore_index=True)
@@ -492,14 +502,8 @@ class Dataset:
                 averages[feature] = round(target_pool[feature].mean(), 1)
             else:
                 averages[feature] = round(target_pool[feature].mean(), 3)
-        
-        return averages
 
-    def add_liked_track(self, track_id):
-        """Add a track to liked tracks"""
-        self.liked_tracks.add(track_id)
-        logger.info(f"Track liked: {track_id} (total liked: {len(self.liked_tracks)})")
-        return True
+        return averages
 
     def get_track_by_id(self, track_id):
         """Get track details by ID"""

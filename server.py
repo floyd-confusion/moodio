@@ -1,6 +1,7 @@
 from flask import Flask, send_from_directory, jsonify, request, session
 import logging
-from src.dataset import Dataset, genre_groups
+from src.dataset import genre_groups
+from src.session import Session, get_all_sessions, delete_session
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -9,8 +10,25 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__, static_folder='public')
 app.secret_key = 'music-recommendation-system-key'  # Enable sessions
 
-# Initialize dataset
-dataset = Dataset()
+# Initialize default session
+current_session = None
+
+def get_current_session():
+    """Get or create the current session"""
+    global current_session
+    if current_session is None:
+        # Try to get the most recent session or create a new one
+        sessions = get_all_sessions()
+        if sessions:
+            # Use the most recent session
+            session_info = sessions[0]
+            current_session = Session(session_info['id'], session_info['name'])
+            logger.info(f"Loaded existing session: {session_info['name']}")
+        else:
+            # Create a new default session
+            current_session = Session.create_new("Default Session")
+            logger.info("Created new default session")
+    return current_session
 
 @app.route('/')
 def serve_index():
@@ -32,7 +50,11 @@ def set_genre():
     
     genre_group = data['genre']
     logger.info(f"API: Setting genre pool to {genre_group}")
+    session_obj = get_current_session()
+    dataset = session_obj.get_dataset()
+    
     if dataset.set_genre_pool(genre_group):
+        session_obj.save_state()
         return jsonify({
             'message': f'Genre pool set for {genre_group}',
             'genre_pool_size': len(dataset.genre_pool),
@@ -45,6 +67,9 @@ def set_genre():
 def get_track():
     """Get a random track from the current pool"""
     logger.debug("API: Getting random track")
+    session_obj = get_current_session()
+    dataset = session_obj.get_dataset()
+    
     track = dataset.get_random_track()
     if track is None:
         logger.warning("API: No tracks available in current pool")
@@ -68,11 +93,16 @@ def adjust_pool():
         return jsonify({'error': 'Invalid adjustment value'}), 400
     
     logger.info(f"API: Processing pool adjustment {adjustment}")
+    session_obj = get_current_session()
+    dataset = session_obj.get_dataset()
+    
     result, status_code = dataset.adjust_pool(adjustment)
     return jsonify(result), status_code
 
 @app.route('/api/likes', methods=['GET', 'POST'])
 def handle_likes():
+    session_obj = get_current_session()
+    
     if request.method == 'POST':
         data = request.get_json()
         if not data or 'track_id' not in data:
@@ -81,19 +111,32 @@ def handle_likes():
         
         track_id = data['track_id']
         logger.info(f"API: Adding track to likes: {track_id}")
-        if dataset.add_liked_track(track_id):
+        
+        # Find the track index in the dataset
+        dataset = session_obj.get_dataset()
+        track_row = dataset.df[dataset.df['track_id'] == track_id]
+        
+        if track_row.empty:
+            logger.warning(f"API: Track not found: {track_id}")
+            return jsonify({'error': 'Track not found'}), 400
+        
+        track_index = track_row.index[0]
+        if session_obj.add_liked_track(track_index):
             return jsonify({'message': 'Track added to likes'})
         return jsonify({'error': 'Failed to add track to likes'}), 400
     
     # GET request
     logger.debug("API: Getting liked tracks")
-    liked_tracks = list(dataset.liked_tracks)
-    return jsonify({'liked_tracks': liked_tracks})
+    liked_track_details = session_obj.get_liked_track_details()
+    return jsonify({'liked_tracks': liked_track_details})
 
 @app.route('/api/track/<track_id>')
 def get_track_by_id(track_id):
     """Get track details by ID"""
     logger.debug(f"API: Getting track by ID: {track_id}")
+    session_obj = get_current_session()
+    dataset = session_obj.get_dataset()
+    
     track = dataset.get_track_by_id(track_id)
     if track is None:
         logger.warning(f"API: Track not found: {track_id}")
@@ -104,6 +147,9 @@ def get_track_by_id(track_id):
 def get_pool_stats():
     """Get current pool statistics"""
     logger.debug("API: Getting pool statistics")
+    session_obj = get_current_session()
+    dataset = session_obj.get_dataset()
+    
     stats = dataset.get_pool_stats()
     return jsonify(stats)
 
@@ -111,6 +157,9 @@ def get_pool_stats():
 def get_adjustment_history():
     """Get adjustment history"""
     logger.debug("API: Getting adjustment history")
+    session_obj = get_current_session()
+    dataset = session_obj.get_dataset()
+    
     history = dataset.get_adjustment_history()
     return jsonify({'adjustments': history})
 
@@ -118,6 +167,9 @@ def get_adjustment_history():
 def clear_adjustments():
     """Clear filter queue and reset pool"""
     logger.info("API: Clearing filters and resetting pool")
+    session_obj = get_current_session()
+    dataset = session_obj.get_dataset()
+    
     if dataset.clear_adjustment_history():
         return jsonify({
             'message': 'Filter queue cleared and pool reset',
@@ -130,6 +182,9 @@ def clear_adjustments():
 def get_filter_queue():
     """Get current filter queue"""
     logger.debug("API: Getting filter queue")
+    session_obj = get_current_session()
+    dataset = session_obj.get_dataset()
+    
     return jsonify({
         'filter_queue': dataset.filter_queue,
         'queue_length': len(dataset.filter_queue)
@@ -140,6 +195,8 @@ def get_filter_queue():
 def get_pool_tracks():
     """Get all tracks in current playback pool"""
     logger.debug("API: Getting all tracks in current pool")
+    session_obj = get_current_session()
+    dataset = session_obj.get_dataset()
     
     pool_to_use = dataset.playback_pool if dataset.playback_pool is not None and not dataset.playback_pool.empty else dataset.genre_pool
     
@@ -172,6 +229,9 @@ def get_pool_tracks():
 def get_fresh_injection_config():
     """Get current fresh injection configuration"""
     logger.debug("API: Getting fresh injection config")
+    session_obj = get_current_session()
+    dataset = session_obj.get_dataset()
+    
     return jsonify(dataset.get_fresh_injection_config())
 
 @app.route('/api/fresh_injection_config', methods=['POST'])
@@ -182,11 +242,15 @@ def set_fresh_injection_config():
         logger.warning("API: fresh_injection_config POST called without data")
         return jsonify({'error': 'No configuration data provided'}), 400
     
+    session_obj = get_current_session()
+    dataset = session_obj.get_dataset()
+    
     if 'fresh_injection_ratio' in data:
         ratio = data['fresh_injection_ratio']
         try:
             ratio = float(ratio)
             if dataset.set_fresh_injection_ratio(ratio):
+                session_obj.save_state()
                 logger.info(f"API: Fresh injection ratio set to {ratio:.1%}")
                 return jsonify({
                     'message': f'Fresh injection ratio set to {ratio:.1%}',
@@ -199,6 +263,104 @@ def set_fresh_injection_config():
             return jsonify({'error': 'Invalid ratio format. Must be a number between 0.0 and 1.0'}), 400
     
     return jsonify({'error': 'No valid configuration parameters provided'}), 400
+
+# Session Management Endpoints
+
+@app.route('/api/sessions', methods=['GET'])
+def get_sessions():
+    """Get all sessions"""
+    logger.debug("API: Getting all sessions")
+    sessions = get_all_sessions()
+    return jsonify({'sessions': sessions})
+
+@app.route('/api/sessions', methods=['POST'])
+def create_session():
+    """Create a new session"""
+    data = request.get_json()
+    if not data or 'name' not in data:
+        logger.warning("API: create_session called without name")
+        return jsonify({'error': 'Session name is required'}), 400
+    
+    name = data['name'].strip()
+    if not name:
+        logger.warning("API: create_session called with empty name")
+        return jsonify({'error': 'Session name cannot be empty'}), 400
+    
+    try:
+        new_session = Session.create_new(name)
+        logger.info(f"API: Created new session: {name}")
+        return jsonify({
+            'message': f'Session "{name}" created successfully',
+            'session': new_session.get_session_info()
+        }), 201
+    except Exception as e:
+        logger.error(f"API: Error creating session: {e}")
+        return jsonify({'error': 'Failed to create session'}), 500
+
+@app.route('/api/sessions/<int:session_id>', methods=['GET'])
+def get_session(session_id):
+    """Get session details by ID"""
+    logger.debug(f"API: Getting session {session_id}")
+    try:
+        session_obj = Session(session_id)
+        return jsonify({'session': session_obj.get_session_info()})
+    except Exception as e:
+        logger.warning(f"API: Session {session_id} not found: {e}")
+        return jsonify({'error': 'Session not found'}), 404
+
+@app.route('/api/sessions/<int:session_id>', methods=['PUT'])
+def update_session(session_id):
+    """Update session name"""
+    data = request.get_json()
+    if not data or 'name' not in data:
+        logger.warning(f"API: update_session called for {session_id} without name")
+        return jsonify({'error': 'Session name is required'}), 400
+    
+    name = data['name'].strip()
+    if not name:
+        logger.warning(f"API: update_session called for {session_id} with empty name")
+        return jsonify({'error': 'Session name cannot be empty'}), 400
+    
+    try:
+        from utils.db import get_db
+        db = get_db()
+        rows_affected = db.update('sessions', {'name': name}, 'id = ?', (session_id,))
+        
+        if rows_affected > 0:
+            logger.info(f"API: Updated session {session_id} name to: {name}")
+            return jsonify({'message': f'Session name updated to "{name}"'})
+        else:
+            logger.warning(f"API: Session {session_id} not found for update")
+            return jsonify({'error': 'Session not found'}), 404
+            
+    except Exception as e:
+        logger.error(f"API: Error updating session {session_id}: {e}")
+        return jsonify({'error': 'Failed to update session'}), 500
+
+@app.route('/api/sessions/<int:session_id>', methods=['DELETE'])
+def delete_session_endpoint(session_id):
+    """Delete a session"""
+    logger.info(f"API: Deleting session {session_id}")
+    
+    # Don't allow deleting the current session
+    global current_session
+    if current_session and current_session.session_id == session_id:
+        logger.warning(f"API: Cannot delete active session {session_id}")
+        return jsonify({'error': 'Cannot delete the currently active session'}), 400
+    
+    if delete_session(session_id):
+        logger.info(f"API: Session {session_id} deleted successfully")
+        return jsonify({'message': 'Session deleted successfully'})
+    else:
+        logger.warning(f"API: Session {session_id} not found for deletion")
+        return jsonify({'error': 'Session not found'}), 404
+
+@app.route('/api/current_session', methods=['GET'])
+def get_current_session_info():
+    """Get current session information"""
+    logger.debug("API: Getting current session info")
+    session_obj = get_current_session()
+    return jsonify({'current_session': session_obj.get_session_info()})
 
 @app.route('/<path:path>')
 def serve_static(path):
