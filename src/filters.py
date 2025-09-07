@@ -234,6 +234,156 @@ def filter_decrease_tempo(genre_pool):
     logger.debug(f"Tempo decrease filter: {len(genre_pool)} → {len(filtered)} tracks (threshold: {target_max:.1f})")
     return filtered
 
+def filter_progressive_increase_acousticness(genre_pool, application_count=0):
+    """Filter tracks with progressively higher acousticness thresholds
+    
+    Progressive thresholds: 1st=50%+, 2nd=75%+, 3rd+=90%+
+    
+    Args:
+        genre_pool (pd.DataFrame): The original genre pool to filter
+        application_count (int): Number of times this filter has been applied (0-based)
+        
+    Returns:
+        pd.DataFrame: Filtered tracks with acousticness above progressive threshold
+    """
+    if genre_pool.empty:
+        logger.warning("Empty genre pool provided to filter_progressive_increase_acousticness")
+        return genre_pool
+    
+    # Progressive thresholds: 50%, 75%, 90%+
+    thresholds = [0.5, 0.75, 0.9]
+    threshold = thresholds[min(application_count, len(thresholds) - 1)]
+    
+    filtered = genre_pool[genre_pool['acousticness'] >= threshold]
+    
+    logger.debug(f"Progressive acousticness increase filter (application #{application_count + 1}): {len(genre_pool)} → {len(filtered)} tracks (threshold: {threshold:.1%})")
+    return filtered
+
+def filter_progressive_decrease_acousticness(genre_pool, application_count=0):
+    """Filter tracks with progressively lower acousticness thresholds
+    
+    Progressive thresholds: 1st=50%-, 2nd=25%-, 3rd+=10%-
+    
+    Args:
+        genre_pool (pd.DataFrame): The original genre pool to filter
+        application_count (int): Number of times this filter has been applied (0-based)
+        
+    Returns:
+        pd.DataFrame: Filtered tracks with acousticness below progressive threshold
+    """
+    if genre_pool.empty:
+        logger.warning("Empty genre pool provided to filter_progressive_decrease_acousticness")
+        return genre_pool
+    
+    # Progressive thresholds: 50%, 25%, 10%
+    thresholds = [0.5, 0.25, 0.1]
+    threshold = thresholds[min(application_count, len(thresholds) - 1)]
+    
+    filtered = genre_pool[genre_pool['acousticness'] <= threshold]
+    
+    logger.debug(f"Progressive acousticness decrease filter (application #{application_count + 1}): {len(genre_pool)} → {len(filtered)} tracks (threshold: {threshold:.1%})")
+    return filtered
+
+def filter_progressive_increase_instrumentalness(genre_pool, application_count=0):
+    """Filter tracks with progressively higher instrumentalness thresholds
+    
+    Progressive thresholds: 1st=50%+, 2nd=75%+, 3rd+=90%+
+    
+    Args:
+        genre_pool (pd.DataFrame): The original genre pool to filter
+        application_count (int): Number of times this filter has been applied (0-based)
+        
+    Returns:
+        pd.DataFrame: Filtered tracks with instrumentalness above progressive threshold
+    """
+    if genre_pool.empty:
+        logger.warning("Empty genre pool provided to filter_progressive_increase_instrumentalness")
+        return genre_pool
+    
+    # Progressive thresholds: 50%, 75%, 90%+
+    thresholds = [0.5, 0.75, 0.9]
+    threshold = thresholds[min(application_count, len(thresholds) - 1)]
+    
+    filtered = genre_pool[genre_pool['instrumentalness'] >= threshold]
+    
+    logger.debug(f"Progressive instrumentalness increase filter (application #{application_count + 1}): {len(genre_pool)} → {len(filtered)} tracks (threshold: {threshold:.1%})")
+    return filtered
+
+def filter_progressive_decrease_instrumentalness(genre_pool, application_count=0):
+    """Filter tracks with progressively lower instrumentalness thresholds
+    
+    Progressive thresholds: 1st=50%-, 2nd=25%-, 3rd+=10%-
+    
+    Args:
+        genre_pool (pd.DataFrame): The original genre pool to filter
+        application_count (int): Number of times this filter has been applied (0-based)
+        
+    Returns:
+        pd.DataFrame: Filtered tracks with instrumentalness below progressive threshold
+    """
+    if genre_pool.empty:
+        logger.warning("Empty genre pool provided to filter_progressive_decrease_instrumentalness")
+        return genre_pool
+    
+    # Progressive thresholds: 50%, 25%, 10%
+    thresholds = [0.5, 0.25, 0.1]
+    threshold = thresholds[min(application_count, len(thresholds) - 1)]
+    
+    filtered = genre_pool[genre_pool['instrumentalness'] <= threshold]
+    
+    logger.debug(f"Progressive instrumentalness decrease filter (application #{application_count + 1}): {len(genre_pool)} → {len(filtered)} tracks (threshold: {threshold:.1%})")
+    return filtered
+
+def filter_progressive_increase_liveness(genre_pool, application_count=0):
+    """Filter tracks with progressively higher liveness thresholds
+    
+    Progressive thresholds: 1st=50%+, 2nd=75%+, 3rd+=90%+
+    
+    Args:
+        genre_pool (pd.DataFrame): The original genre pool to filter
+        application_count (int): Number of times this filter has been applied (0-based)
+        
+    Returns:
+        pd.DataFrame: Filtered tracks with liveness above progressive threshold
+    """
+    if genre_pool.empty:
+        logger.warning("Empty genre pool provided to filter_progressive_increase_liveness")
+        return genre_pool
+    
+    # Progressive thresholds: 50%, 75%, 90%+
+    thresholds = [0.5, 0.75, 0.9]
+    threshold = thresholds[min(application_count, len(thresholds) - 1)]
+    
+    filtered = genre_pool[genre_pool['liveness'] >= threshold]
+    
+    logger.debug(f"Progressive liveness increase filter (application #{application_count + 1}): {len(genre_pool)} → {len(filtered)} tracks (threshold: {threshold:.1%})")
+    return filtered
+
+def filter_progressive_decrease_liveness(genre_pool, application_count=0):
+    """Filter tracks with progressively lower liveness thresholds
+    
+    Progressive thresholds: 1st=50%-, 2nd=25%-, 3rd+=10%-
+    
+    Args:
+        genre_pool (pd.DataFrame): The original genre pool to filter
+        application_count (int): Number of times this filter has been applied (0-based)
+        
+    Returns:
+        pd.DataFrame: Filtered tracks with liveness below progressive threshold
+    """
+    if genre_pool.empty:
+        logger.warning("Empty genre pool provided to filter_progressive_decrease_liveness")
+        return genre_pool
+    
+    # Progressive thresholds: 50%, 25%, 10%
+    thresholds = [0.5, 0.25, 0.1]
+    threshold = thresholds[min(application_count, len(thresholds) - 1)]
+    
+    filtered = genre_pool[genre_pool['liveness'] <= threshold]
+    
+    logger.debug(f"Progressive liveness decrease filter (application #{application_count + 1}): {len(genre_pool)} → {len(filtered)} tracks (threshold: {threshold:.1%})")
+    return filtered
+
 # Filter registry mapping filter names to functions
 FILTER_REGISTRY = {
     'filter_increase_danceability': filter_increase_danceability,
@@ -246,29 +396,34 @@ FILTER_REGISTRY = {
     'filter_decrease_speechiness': filter_decrease_speechiness,
     'filter_increase_tempo': filter_increase_tempo,
     'filter_decrease_tempo': filter_decrease_tempo,
+    'filter_progressive_increase_acousticness': filter_progressive_increase_acousticness,
+    'filter_progressive_decrease_acousticness': filter_progressive_decrease_acousticness,
+    'filter_progressive_increase_instrumentalness': filter_progressive_increase_instrumentalness,
+    'filter_progressive_decrease_instrumentalness': filter_progressive_decrease_instrumentalness,
+    'filter_progressive_increase_liveness': filter_progressive_increase_liveness,
+    'filter_progressive_decrease_liveness': filter_progressive_decrease_liveness,
 }
 
 music_filters = {
-    "Like this artist!": "filter_more_from_artist",
-    "Try someone new": "filter_new_artist",
-    "More from this album?": "filter_more_from_album",
-    "Let’s get groovy": "filter_increase_danceability",
+    # Traditional audio feature filters (0-9)
+    "Let's get groovy": "filter_increase_danceability",
     "Take the groove down": "filter_decrease_danceability",
-    "Crank up the energy": "filter_increase_energy",
+    "Crank up the energy": "filter_increase_energy", 
     "Keep it chill": "filter_decrease_energy",
     "Talk to me — more lyrics": "filter_increase_speechiness",
     "Less chatter, more vibe": "filter_decrease_speechiness",
-    "Play more acoustic stuff": "filter_include_acoustic",
-    "No unplugged right now": "filter_exclude_acoustic",
-    "Go full instrumental": "filter_include_instrumental",
-    "Bring back the vocals": "filter_exclude_instrumental",
-    "Give me that live feel": "filter_include_live",
-    "Studio only, please": "filter_exclude_live",
     "Make it happier": "filter_increase_valence",
     "Go darker, moodier": "filter_decrease_valence",
     "Pick up the pace": "filter_increase_tempo",
     "Slow it down": "filter_decrease_tempo",
-    "Keep the genre vibe": "filter_maintain_genre",
+    
+    # Progressive filters (10-15)
+    "More acoustic vibes": "filter_progressive_increase_acousticness",
+    "Less acoustic please": "filter_progressive_decrease_acousticness",
+    "Go instrumental": "filter_progressive_increase_instrumentalness", 
+    "Need more vocals": "filter_progressive_decrease_instrumentalness",
+    "Live concert feel": "filter_progressive_increase_liveness",
+    "Studio perfection": "filter_progressive_decrease_liveness",
 }
 
 def get_filter_function(filter_name):

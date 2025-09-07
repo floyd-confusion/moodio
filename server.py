@@ -94,9 +94,9 @@ def adjust_pool():
     
     try:
         adjustment = int(adjustment)
-        if not 0 <= adjustment <= 9:
+        if not 0 <= adjustment <= 15:
             logger.warning(f"API: Invalid adjustment value {adjustment}")
-            return jsonify({'error': 'Adjustment must be between 0 and 9'}), 400
+            return jsonify({'error': 'Adjustment must be between 0 and 15'}), 400
     except ValueError:
         logger.warning(f"API: Non-integer adjustment value: {adjustment}")
         return jsonify({'error': 'Invalid adjustment value'}), 400
@@ -225,7 +225,10 @@ def get_pool_tracks():
             'energy': track['energy'],
             'speechiness': track['speechiness'],
             'valence': track['valence'],
-            'tempo': track['tempo']
+            'tempo': track['tempo'],
+            'acousticness': track['acousticness'],
+            'instrumentalness': track['instrumentalness'],
+            'liveness': track['liveness']
         })
     
     return jsonify({

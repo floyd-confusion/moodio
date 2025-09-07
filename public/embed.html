@@ -150,6 +150,28 @@
             background-color: #1DB954;
             color: white;
         }
+        .adjustment-btn.progressive {
+            font-weight: bold;
+            border-width: 3px;
+        }
+        .adjustment-btn.progressive.increase {
+            border-color: #ff6b35;
+            color: #ff6b35;
+            background: linear-gradient(45deg, rgba(255, 107, 53, 0.1), rgba(29, 185, 84, 0.1));
+        }
+        .adjustment-btn.progressive.increase:hover {
+            background-color: #ff6b35;
+            color: white;
+        }
+        .adjustment-btn.progressive.decrease {
+            border-color: #9b59b6;
+            color: #9b59b6;
+            background: linear-gradient(45deg, rgba(155, 89, 182, 0.1), rgba(231, 76, 60, 0.1));
+        }
+        .adjustment-btn.progressive.decrease:hover {
+            background-color: #9b59b6;
+            color: white;
+        }
         h1 {
             color: #333;
             margin-bottom: 2rem;
@@ -422,6 +444,23 @@
                             <button class="adjustment-btn decrease" onclick="adjustPool(8)">-</button>
                             <button class="adjustment-btn increase" onclick="adjustPool(9)">+</button>
                         </div>
+                        
+                        <!-- Progressive Filters -->
+                        <div class="control-row" style="margin-top: 1rem; border-top: 1px solid #ddd; padding-top: 1rem;">
+                            <span class="control-label" style="font-weight: bold; color: #1DB954;">Progressive Acousticness:</span>
+                            <button class="adjustment-btn increase progressive" onclick="adjustPool(10)" title="50% → 75% → 90%+">++</button>
+                            <button class="adjustment-btn decrease progressive" onclick="adjustPool(11)" title="50% → 25% → 10%-">--</button>
+                        </div>
+                        <div class="control-row">
+                            <span class="control-label" style="font-weight: bold; color: #1DB954;">Progressive Instrumentalness:</span>
+                            <button class="adjustment-btn increase progressive" onclick="adjustPool(12)" title="50% → 75% → 90%+">++</button>
+                            <button class="adjustment-btn decrease progressive" onclick="adjustPool(13)" title="50% → 25% → 10%-">--</button>
+                        </div>
+                        <div class="control-row">
+                            <span class="control-label" style="font-weight: bold; color: #1DB954;">Progressive Liveness:</span>
+                            <button class="adjustment-btn increase progressive" onclick="adjustPool(14)" title="50% → 75% → 90%+">++</button>
+                            <button class="adjustment-btn decrease progressive" onclick="adjustPool(15)" title="50% → 25% → 10%-">--</button>
+                        </div>
                     </div>
                     
                     <!-- Adjustment History Table -->
@@ -521,7 +560,10 @@
                         2: 'Energy ↓', 3: 'Energy ↑', 
                         4: 'Speechiness ↓', 5: 'Speechiness ↑',
                         6: 'Valence ↓', 7: 'Valence ↑',
-                        8: 'Tempo ↓', 9: 'Tempo ↑'
+                        8: 'Tempo ↓', 9: 'Tempo ↑',
+                        10: 'Acousticness Progressive ↑', 11: 'Acousticness Progressive ↓',
+                        12: 'Instrumentalness Progressive ↑', 13: 'Instrumentalness Progressive ↓',
+                        14: 'Liveness Progressive ↑', 15: 'Liveness Progressive ↓'
                     };
                     
                     historyTable.innerHTML = adjustments.map((adj, index) => {
@@ -581,6 +623,9 @@
                             <div>Speech: ${stats.avg_stats.speechiness || 'N/A'}</div>
                             <div>Valence: ${stats.avg_stats.valence || 'N/A'}</div>
                             <div>Tempo: ${stats.avg_stats.tempo || 'N/A'}</div>
+                            <div>Acoustic: ${stats.avg_stats.acousticness || 'N/A'}</div>
+                            <div>Instrumental: ${stats.avg_stats.instrumentalness || 'N/A'}</div>
+                            <div>Liveness: ${stats.avg_stats.liveness || 'N/A'}</div>
                         </div>
                     `;
                 })
@@ -668,7 +713,10 @@
                 { label: 'Energy', value: track.energy },
                 { label: 'Speechiness', value: track.speechiness },
                 { label: 'Valence', value: track.valence },
-                { label: 'Tempo', value: `${track.tempo} BPM` }
+                { label: 'Tempo', value: `${track.tempo} BPM` },
+                { label: 'Acousticness', value: track.acousticness },
+                { label: 'Instrumentalness', value: track.instrumentalness },
+                { label: 'Liveness', value: track.liveness }
             ];
 
             infoGrid.innerHTML = infoItems.map(item => `

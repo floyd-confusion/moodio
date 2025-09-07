@@ -70,7 +70,7 @@ class Dataset:
         self.cross_genre_expansion_ratio = 0.3  # How much of expansion should be cross-genre
         
         # Audio features for calculations
-        self.audio_features = ['danceability', 'energy', 'speechiness', 'valence', 'tempo']
+        self.audio_features = ['danceability', 'energy', 'speechiness', 'valence', 'tempo', 'acousticness', 'instrumentalness', 'liveness']
         self.controlled_features = []
 
         # Track selection strategy
@@ -149,7 +149,10 @@ class Dataset:
             'energy': track['energy'],
             'speechiness': track['speechiness'],
             'valence': track['valence'],
-            'tempo': track['tempo']
+            'tempo': track['tempo'],
+            'acousticness': track['acousticness'],
+            'instrumentalness': track['instrumentalness'],
+            'liveness': track['liveness']
         }
 
     def _get_average_centered_track(self, pool):
@@ -248,14 +251,20 @@ class Dataset:
             6: 'filter_decrease_valence',
             7: 'filter_increase_valence',
             8: 'filter_decrease_tempo',
-            9: 'filter_increase_tempo'
+            9: 'filter_increase_tempo',
+            10: 'filter_progressive_increase_acousticness',
+            11: 'filter_progressive_decrease_acousticness',
+            12: 'filter_progressive_increase_instrumentalness',
+            13: 'filter_progressive_decrease_instrumentalness',
+            14: 'filter_progressive_increase_liveness',
+            15: 'filter_progressive_decrease_liveness'
         }
 
         # Get the filter function name
         filter_name = filter_map.get(adjustment)
         if not filter_name:
             logger.error(f"Invalid adjustment value: {adjustment}")
-            return {'error': 'Invalid adjustment value. Must be between 0 and 9'}, 400
+            return {'error': 'Invalid adjustment value. Must be between 0 and 15'}, 400
 
         # Check if filter function exists
         if filter_name not in FILTER_REGISTRY:
@@ -272,13 +281,17 @@ class Dataset:
 
         # Rebuild playback pool by applying all filters in sequence
         pool_size_before = len(self.playback_pool) if self.playback_pool is not None else 0
-        self._rebuild_playback_pool()
-        pool_size_after = len(self.playback_pool)
 
-        logger.info(f"Filter applied: {filter_name} -> {pool_size_before} → {pool_size_after} tracks")
+        for p in range(5):
+            self._rebuild_playback_pool(1 * 1.2 ** p)
+            pool_size_after = len(self.playback_pool)
+            if pool_size_after >= self.minimum_pool_threshold:
+                logger.info(f"Filters applied: {pool_size_before} → {pool_size_after} tracks")
+                break
+        pool_size = len(self.playback_pool)
 
-        # Legacy compatibility
-        self.current_pool = self.playback_pool.copy()
+        if pool_size < self.minimum_pool_threshold:
+            logger.warning(f"Playback pool size below minimum threshold: {pool_size} < {self.minimum_pool_threshold}")
 
         # Add to legacy adjustment history
         param_direction = filter_name.replace('filter_', '').replace('_', ' ')
@@ -288,14 +301,13 @@ class Dataset:
             'parameter': param_direction.split(' ')[1],  # e.g., 'danceability'
             'direction': param_direction.split(' ')[0],  # e.g., 'increase'
             'pool_size_before': pool_size_before,
-            'pool_size_after': pool_size_after,
+            'pool_size_after': pool_size,
             'avg_stats_after': self._get_pool_averages()
         }
         self.adjustment_history.append(adjustment_record)
 
         return {
-            'message': f'Filter applied: {filter_name}',
-            'remaining_tracks': pool_size_after,
+            'remaining_tracks': pool_size,
             'filters_in_queue': len(self.filter_queue)
         }, 200
 
@@ -358,7 +370,7 @@ class Dataset:
             logger.warning("Pool mixing failed, using new filter result only")
             return new_filtered_result
 
-    def _rebuild_playback_pool(self):
+    def _rebuild_playback_pool(self, radius_multiplier):
         """Rebuild playback pool by applying filters one-by-one with mixing after each"""
         if self.genre_pool is None:
             logger.warning("Cannot rebuild playback pool: no genre pool set")
@@ -374,28 +386,43 @@ class Dataset:
         current_pool = self.genre_pool.copy()
 
         controlled_features = []
+        logger.debug(
+            f"Applying features with {radius_multiplier}x radius multiplier")
         # Apply each filter one-by-one with mixing after each
         for i, filter_record in enumerate(self.filter_queue):
             filter_name = filter_record['filter_name']
             filter_func = FILTER_REGISTRY.get(filter_name)
-            filter_feature = filter_name.split('_')[2]
+            filter_feature = filter_name.split('_')[-1]
             controlled_features.append(filter_feature) if filter_feature not in controlled_features else None
 
             if not filter_func:
                 logger.error(f"Filter function not found: {filter_name}")
                 continue
 
+            # For progressive filters, count how many times this filter has been applied before
+            application_count = 0
+            if filter_name.startswith('filter_progressive_'):
+                # Count previous applications of the same progressive filter
+                for prev_filter in self.filter_queue[:i]:
+                    if prev_filter['filter_name'] == filter_name:
+                        application_count += 1
+            
             # Test filter to calculate reduction rate
             pool_before = len(current_pool)
-            test_result = filter_func(current_pool.copy())
+            if filter_name.startswith('filter_progressive_'):
+                test_result = filter_func(current_pool.copy(), application_count)
+            else:
+                test_result = filter_func(current_pool.copy())
             pool_after = len(test_result)
             reduction_rate = self._calculate_reduction_rate(pool_before, pool_after)
 
-            # Apply filter with adjusted radius if reduction > 50%
-            multiplier = self.radius_multiplier_factor if reduction_rate > 0.5 else 1.0
-            adjusted_filter = create_adjusted_filter(filter_func, multiplier)
-            filtered_result = adjusted_filter(current_pool.copy())
-            logger.debug(f"Applied {filter_name} with {reduction_rate:.1%} reduction rate using {multiplier}x radius multiplier")
+            if filter_name.startswith('filter_progressive_'):
+                # Progressive filters don't use the radius multiplier system
+                filtered_result = filter_func(current_pool.copy(), application_count)
+            else:
+                adjusted_filter = create_adjusted_filter(filter_func, radius_multiplier)
+                filtered_result = adjusted_filter(current_pool.copy())
+
 
             if filtered_result.empty:
                 logger.warning(f"Pool became empty after filter {i + 1}: {filter_name}, skipping remaining filters")
@@ -521,7 +548,10 @@ class Dataset:
             'energy': track['energy'],
             'speechiness': track['speechiness'],
             'valence': track['valence'],
-            'tempo': track['tempo']
+            'tempo': track['tempo'],
+            'acousticness': track['acousticness'],
+            'instrumentalness': track['instrumentalness'],
+            'liveness': track['liveness']
         }
 
     def get_pool_stats(self):
