@@ -24,31 +24,34 @@ class Session:
     - Session state storage and retrieval
     """
     
-    def __init__(self, session_id: int, name: str = None):
+    def __init__(self, session_id: int, name: str = None, user_id: int = None):
         """
         Initialize session with existing ID or create new session.
         
         Args:
             session_id: Existing session ID from database
             name: Session name (for new sessions)
+            user_id: User ID who owns this session (None for anonymous)
         """
         self.session_id = session_id
         self.name = name
+        self.user_id = user_id
         self.dataset = Dataset()
         self.db = get_db()
         
         # Load session state if it exists
         self._load_state()
         
-        logger.info(f"Session {self.session_id} initialized: {self.name}")
+        logger.info(f"Session {self.session_id} initialized: {self.name} (User: {self.user_id})")
     
     @classmethod
-    def create_new(cls, name: str) -> 'Session':
+    def create_new(cls, name: str, user_id: int = None) -> 'Session':
         """
         Create a new session in the database.
         
         Args:
             name: Name for the new session
+            user_id: User ID who owns this session (None for anonymous)
             
         Returns:
             New Session instance
@@ -56,7 +59,11 @@ class Session:
         db = get_db()
         
         # Insert new session
-        session_id = db.insert('sessions', {'name': name})
+        session_data = {'name': name}
+        if user_id is not None:
+            session_data['user_id'] = user_id
+            
+        session_id = db.insert('sessions', session_data)
         
         # Initialize session state
         db.insert('session_state', {
@@ -64,8 +71,8 @@ class Session:
             'fresh_injection_ratio': 0.3
         })
         
-        logger.info(f"Created new session {session_id}: {name}")
-        return cls(session_id, name)
+        logger.info(f"Created new session {session_id}: {name} (User: {user_id})")
+        return cls(session_id, name, user_id)
     
     def get_dataset(self) -> Dataset:
         """Get the dataset instance for this session."""
@@ -205,12 +212,13 @@ class Session:
         try:
             # Load basic session info
             session_row = self.db.fetch_one(
-                "SELECT name FROM sessions WHERE id = ?",
+                "SELECT name, user_id FROM sessions WHERE id = ?",
                 (self.session_id,)
             )
             
             if session_row:
                 self.name = session_row['name']
+                self.user_id = session_row['user_id']
             
             # Load session state
             state_row = self.db.fetch_one(
@@ -242,30 +250,45 @@ class Session:
         return {
             'id': self.session_id,
             'name': self.name,
+            'user_id': self.user_id,
             'liked_tracks_count': len(self.get_liked_tracks()),
             'current_genre': getattr(self.dataset, 'current_genre_group', None),
             'fresh_injection_ratio': getattr(self.dataset, 'fresh_injection_ratio', 0.3)
         }
 
 
-def get_all_sessions() -> List[Dict[str, Any]]:
+def get_all_sessions(user_id: int = None) -> List[Dict[str, Any]]:
     """
-    Get list of all sessions from database.
+    Get list of sessions from database.
+    
+    Args:
+        user_id: If provided, only return sessions for this user. 
+                If None, return all sessions.
     
     Returns:
         List of session dictionaries
     """
     try:
         db = get_db()
-        rows = db.fetch_all(
-            "SELECT id, name, created_at, updated_at FROM sessions ORDER BY updated_at DESC"
-        )
+        
+        if user_id is not None:
+            # Get sessions for specific user
+            rows = db.fetch_all(
+                "SELECT id, name, user_id, created_at, updated_at FROM sessions WHERE user_id = ? ORDER BY updated_at DESC",
+                (user_id,)
+            )
+        else:
+            # Get all sessions
+            rows = db.fetch_all(
+                "SELECT id, name, user_id, created_at, updated_at FROM sessions ORDER BY updated_at DESC"
+            )
         
         sessions = []
         for row in rows:
             sessions.append({
                 'id': row['id'],
                 'name': row['name'],
+                'user_id': row['user_id'],
                 'created_at': row['created_at'],
                 'updated_at': row['updated_at']
             })
@@ -273,7 +296,7 @@ def get_all_sessions() -> List[Dict[str, Any]]:
         return sessions
         
     except Exception as e:
-        logger.error(f"Error fetching all sessions: {e}")
+        logger.error(f"Error fetching sessions for user {user_id}: {e}")
         return []
 
 

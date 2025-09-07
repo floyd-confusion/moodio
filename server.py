@@ -2,6 +2,7 @@ from flask import Flask, send_from_directory, jsonify, request, session
 import logging
 from src.dataset import genre_groups
 from src.session import Session, get_all_sessions, delete_session
+from src.auth import register_user, authenticate_user, get_user_by_id, AuthError
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -32,7 +33,15 @@ def get_current_session():
 
 @app.route('/')
 def serve_index():
+    return send_from_directory(app.static_folder, 'auth.html')
+
+@app.route('/genres')
+def serve_genres():
     return send_from_directory(app.static_folder, 'index.html')
+
+@app.route('/auth')
+def serve_auth():
+    return send_from_directory(app.static_folder, 'auth.html')
 
 @app.route('/api/genres')
 def get_genres():
@@ -264,13 +273,116 @@ def set_fresh_injection_config():
     
     return jsonify({'error': 'No valid configuration parameters provided'}), 400
 
+# Authentication Endpoints
+
+@app.route('/api/register', methods=['POST'])
+def register():
+    """Register a new user"""
+    data = request.get_json()
+    if not data:
+        logger.warning("API: register called without data")
+        return jsonify({'error': 'Registration data required'}), 400
+    
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+    
+    if not username or not password:
+        logger.warning("API: register called without username or password")
+        return jsonify({'error': 'Username and password are required'}), 400
+    
+    try:
+        result = register_user(username, password)
+        logger.info(f"API: User registered successfully: {username}")
+        return jsonify(result), 201
+        
+    except AuthError as e:
+        logger.warning(f"API: Registration failed for {username}: {str(e)}")
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"API: Registration error for {username}: {e}")
+        return jsonify({'error': 'Registration failed'}), 500
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    """Authenticate user login"""
+    data = request.get_json()
+    if not data:
+        logger.warning("API: login called without data")
+        return jsonify({'error': 'Login data required'}), 400
+    
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+    
+    if not username or not password:
+        logger.warning("API: login called without username or password")
+        return jsonify({'error': 'Username and password are required'}), 400
+    
+    try:
+        result = authenticate_user(username, password)
+        
+        # Store user info in Flask session
+        session['user_id'] = result['user_id']
+        session['username'] = result['username']
+        
+        logger.info(f"API: User logged in successfully: {username}")
+        return jsonify(result)
+        
+    except AuthError as e:
+        logger.warning(f"API: Login failed for {username}: {str(e)}")
+        return jsonify({'error': str(e)}), 401
+    except Exception as e:
+        logger.error(f"API: Login error for {username}: {e}")
+        return jsonify({'error': 'Login failed'}), 500
+
+@app.route('/api/logout', methods=['POST'])
+def logout():
+    """Logout user and clear session"""
+    username = session.get('username', 'unknown')
+    
+    # Clear Flask session
+    session.clear()
+    
+    logger.info(f"API: User logged out: {username}")
+    return jsonify({'message': 'Logged out successfully'})
+
+@app.route('/api/user', methods=['GET'])
+def get_current_user():
+    """Get current user information"""
+    user_id = session.get('user_id')
+    
+    if not user_id:
+        return jsonify({'user': None, 'authenticated': False})
+    
+    user_info = get_user_by_id(user_id)
+    
+    if user_info:
+        return jsonify({
+            'user': user_info,
+            'authenticated': True
+        })
+    else:
+        # Clear invalid session
+        session.clear()
+        return jsonify({'user': None, 'authenticated': False})
+
 # Session Management Endpoints
 
 @app.route('/api/sessions', methods=['GET'])
 def get_sessions():
-    """Get all sessions"""
-    logger.debug("API: Getting all sessions")
-    sessions = get_all_sessions()
+    """Get sessions (user's sessions if authenticated, all sessions if anonymous)"""
+    logger.debug("API: Getting sessions")
+    
+    user_id = session.get('user_id')
+    
+    if user_id:
+        # Get user's sessions
+        sessions = get_all_sessions(user_id)
+        logger.debug(f"API: Returning {len(sessions)} sessions for user {user_id}")
+    else:
+        # Get all sessions for anonymous users
+        sessions = get_all_sessions()
+        logger.debug(f"API: Returning {len(sessions)} sessions for anonymous user")
+    
     return jsonify({'sessions': sessions})
 
 @app.route('/api/sessions', methods=['POST'])
@@ -286,9 +398,12 @@ def create_session():
         logger.warning("API: create_session called with empty name")
         return jsonify({'error': 'Session name cannot be empty'}), 400
     
+    # Get current user if authenticated
+    user_id = session.get('user_id')
+    
     try:
-        new_session = Session.create_new(name)
-        logger.info(f"API: Created new session: {name}")
+        new_session = Session.create_new(name, user_id)
+        logger.info(f"API: Created new session: {name} (User: {user_id})")
         return jsonify({
             'message': f'Session "{name}" created successfully',
             'session': new_session.get_session_info()
@@ -303,6 +418,13 @@ def get_session(session_id):
     logger.debug(f"API: Getting session {session_id}")
     try:
         session_obj = Session(session_id)
+        
+        # Check if user has access to this session
+        user_id = session.get('user_id')
+        if session_obj.user_id is not None and session_obj.user_id != user_id:
+            logger.warning(f"API: User {user_id} denied access to session {session_id} (owner: {session_obj.user_id})")
+            return jsonify({'error': 'Access denied to this session'}), 403
+            
         return jsonify({'session': session_obj.get_session_info()})
     except Exception as e:
         logger.warning(f"API: Session {session_id} not found: {e}")
@@ -342,17 +464,30 @@ def delete_session_endpoint(session_id):
     """Delete a session"""
     logger.info(f"API: Deleting session {session_id}")
     
-    # Don't allow deleting the current session
-    global current_session
-    if current_session and current_session.session_id == session_id:
-        logger.warning(f"API: Cannot delete active session {session_id}")
-        return jsonify({'error': 'Cannot delete the currently active session'}), 400
-    
-    if delete_session(session_id):
-        logger.info(f"API: Session {session_id} deleted successfully")
-        return jsonify({'message': 'Session deleted successfully'})
-    else:
-        logger.warning(f"API: Session {session_id} not found for deletion")
+    try:
+        # Check if user has access to delete this session
+        session_obj = Session(session_id)
+        user_id = session.get('user_id')
+        
+        if session_obj.user_id is not None and session_obj.user_id != user_id:
+            logger.warning(f"API: User {user_id} denied delete access to session {session_id} (owner: {session_obj.user_id})")
+            return jsonify({'error': 'Access denied to delete this session'}), 403
+        
+        # Don't allow deleting the current session
+        global current_session
+        if current_session and current_session.session_id == session_id:
+            logger.warning(f"API: Cannot delete active session {session_id}")
+            return jsonify({'error': 'Cannot delete the currently active session'}), 400
+        
+        if delete_session(session_id):
+            logger.info(f"API: Session {session_id} deleted successfully")
+            return jsonify({'message': 'Session deleted successfully'})
+        else:
+            logger.warning(f"API: Session {session_id} not found for deletion")
+            return jsonify({'error': 'Session not found'}), 404
+            
+    except Exception as e:
+        logger.warning(f"API: Session {session_id} not found: {e}")
         return jsonify({'error': 'Session not found'}), 404
 
 @app.route('/api/current_session', methods=['GET'])

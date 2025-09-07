@@ -99,9 +99,46 @@
             background-color: #1DB954;
             color: white;
         }
+        
+        .user-header {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .user-info {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .user-name {
+            font-weight: 600;
+            color: #1DB954;
+        }
+        
+        .auth-link, .logout-btn {
+            color: #1DB954;
+            text-decoration: none;
+            font-size: 0.9rem;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+        }
+        
+        .auth-link:hover, .logout-btn:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
+    <div class="user-header" id="userHeader">
+        <!-- User info will be added here by JavaScript -->
+    </div>
+    
     <div class="container">
         <h1>Select a Genre Group</h1>
         <div class="genre-grid" id="genreGrid">
@@ -174,8 +211,56 @@
             });
         }
 
-        // Load genres when page loads
+        // Authentication functions
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch('/api/user');
+                const data = await response.json();
+                
+                const userHeader = document.getElementById('userHeader');
+                
+                if (data.authenticated) {
+                    // User is logged in
+                    userHeader.innerHTML = `
+                        <div class="user-info">
+                            Welcome, <span class="user-name">${data.user.username}</span>
+                        </div>
+                        <button class="logout-btn" onclick="handleLogout()">Logout</button>
+                    `;
+                } else {
+                    // User is not logged in
+                    userHeader.innerHTML = `
+                        <a href="/auth" class="auth-link">Login / Register</a>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error checking auth status:', error);
+                // Show login link if there's an error
+                const userHeader = document.getElementById('userHeader');
+                userHeader.innerHTML = `
+                    <a href="/auth" class="auth-link">Login / Register</a>
+                `;
+            }
+        }
+        
+        async function handleLogout() {
+            try {
+                const response = await fetch('/api/logout', {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    // Refresh auth status after logout
+                    checkAuthStatus();
+                }
+            } catch (error) {
+                console.error('Error logging out:', error);
+            }
+        }
+        
+        // Load genres and check auth status when page loads
         loadGenres();
+        checkAuthStatus();
     </script>
 </body>
 </html> 

@@ -60,13 +60,26 @@ class DatabaseManager:
     def _create_tables(self, conn: sqlite3.Connection) -> None:
         """Create database tables if they don't exist."""
         
-        # Sessions table
+        # Users table
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_login TIMESTAMP
+            )
+        ''')
+        
+        # Sessions table (updated with user_id)
         conn.execute('''
             CREATE TABLE IF NOT EXISTS sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name VARCHAR(255) NOT NULL,
+                user_id INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         ''')
         
@@ -91,6 +104,14 @@ class DatabaseManager:
                 FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
             )
         ''')
+        
+        # Add user_id column to existing sessions table if it doesn't exist
+        try:
+            conn.execute('ALTER TABLE sessions ADD COLUMN user_id INTEGER REFERENCES users(id)')
+            logger.info("Added user_id column to existing sessions table")
+        except sqlite3.OperationalError:
+            # Column already exists
+            pass
         
         conn.commit()
         logger.info("Database tables created successfully")
