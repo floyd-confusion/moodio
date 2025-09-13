@@ -3,200 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spotify Embed</title>
+    <title>Music Player - Music Recommendation</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Custom CSS -->
+    <link href="/styles.css" rel="stylesheet">
+    
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            line-height: 1.6;
-            margin: 0;
-            padding: 2rem;
-            background-color: #f5f5f5;
-        }
-        .layout-container {
-            max-width: 1600px;
-            margin: 0 auto;
-        }
-        .main-container {
-            display: flex;
-            gap: 2rem;
-            margin-bottom: 2rem;
-        }
-        .adjustment-container {
-            background-color: white;
-            border-radius: 16px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            padding: 2rem;
-        }
-        .adjustment-content {
-            display: flex;
-            gap: 2rem;
-            align-items: flex-start;
-        }
-        .adjustment-left {
-            flex: 2;
-        }
-        .adjustment-right {
-            flex: 1;
-            min-width: 300px;
-        }
-        .pool-stats-container {
-            background-color: #f8f9fa;
-            border: 2px solid #6c757d;
-            border-radius: 8px;
-            padding: 1rem;
-            margin-bottom: 1rem;
-            font-family: 'Courier New', monospace;
-            font-size: 0.9rem;
-        }
-        .reset-button {
-            background-color: #dc3545;
-            color: white;
-            border: none;
-            padding: 0.75rem 1.5rem;
-            font-size: 1rem;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            width: 100%;
-        }
-        .reset-button:hover {
-            background-color: #c82333;
-        }
-        .control-buttons {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-            margin-bottom: 2rem;
-        }
-        .control-row {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-        .control-label {
-            font-weight: 600;
-            color: #333;
-            min-width: 100px;
-        }
-        .player-container {
-            flex: 3;
-            background-color: white;
-            border-radius: 16px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            padding: 2rem;
-        }
-        .liked-container {
-            flex: 2;
-            background-color: white;
-            border-radius: 16px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            padding: 2rem;
-            min-width: 300px;
-        }
-        .adjustment-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1rem 0 0 0;
-            background-color: white;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        .adjustment-table th {
-            background-color: #1DB954;
-            color: white;
-            padding: 0.75rem 0.5rem;
-            text-align: center;
-            font-weight: 600;
-            font-size: 0.9rem;
-        }
-        .adjustment-table td {
-            padding: 0.75rem 0.5rem;
-            text-align: center;
-            border-bottom: 1px solid #eee;
-            font-size: 0.85rem;
-        }
-        .adjustment-table tr:last-child td {
-            border-bottom: none;
-        }
-        .metric-name {
-            font-weight: 600;
-            color: #333;
-        }
-        .adjustment-btn {
-            background-color: #f8f8f8;
-            border: 2px solid;
-            padding: 0.5rem 1rem;
-            margin: 0 0.25rem;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 1.2rem;
-            transition: all 0.2s;
-            min-width: 40px;
-        }
-        .adjustment-btn.decrease {
-            border-color: #e74c3c;
-            color: #e74c3c;
-        }
-        .adjustment-btn.decrease:hover {
-            background-color: #e74c3c;
-            color: white;
-        }
-        .adjustment-btn.increase {
-            border-color: #1DB954;
-            color: #1DB954;
-        }
-        .adjustment-btn.increase:hover {
-            background-color: #1DB954;
-            color: white;
-        }
-        .adjustment-btn.progressive {
-            font-weight: bold;
-            border-width: 3px;
-        }
-        .adjustment-btn.progressive.increase {
-            border-color: #ff6b35;
-            color: #ff6b35;
-            background: linear-gradient(45deg, rgba(255, 107, 53, 0.1), rgba(29, 185, 84, 0.1));
-        }
-        .adjustment-btn.progressive.increase:hover {
-            background-color: #ff6b35;
-            color: white;
-        }
-        .adjustment-btn.progressive.decrease {
-            border-color: #9b59b6;
-            color: #9b59b6;
-            background: linear-gradient(45deg, rgba(155, 89, 182, 0.1), rgba(231, 76, 60, 0.1));
-        }
-        .adjustment-btn.progressive.decrease:hover {
-            background-color: #9b59b6;
-            color: white;
-        }
-        h1 {
-            color: #333;
-            margin-bottom: 2rem;
-            text-align: center;
-            font-size: 2.5rem;
-        }
-        .liked-title {
-            color: #333;
-            margin-bottom: 1.5rem;
-            font-size: 1.5rem;
-            border-bottom: 2px solid #1DB954;
-            padding-bottom: 0.5rem;
-        }
-        .content-wrapper {
-            display: flex;
-            gap: 4rem;
-            align-items: flex-start;
-        }
-        .player-section {
-            flex: 2;
-        }
-        .info-section {
-            flex: 1;
-            min-width: 400px;
-        }
+        /* Custom styles specific to embed page */
         .spotify-embed {
             margin: 4rem 0;
             border-radius: 16px;
@@ -367,142 +183,69 @@
     </style>
 </head>
 <body>
-    <div class="user-header" id="userHeader">
-        <!-- User info will be added here by JavaScript -->
-    </div>
+    <!-- User Header -->
+    <nav class="user-header">
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between align-items-center">
+                <button class="btn btn-outline-music btn-sm" onclick="window.location.href='/genres'">
+                    ← Back to Genre Selection
+                </button>
+                <div id="userHeader">
+                    <!-- User info will be added here by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </nav>
     
-    <div class="layout-container">
-        <!-- Main Controls and Liked Tracks Frame -->
-        <div class="main-container">
-            <div class="player-container">
-                <button class="back-button" onclick="window.location.href='/genres'">← Back to Genre Selection</button>
-                <h1>Spotify Preview</h1>
-                <div class="content-wrapper">
-                    <div class="player-section">
-                        <div class="spotify-embed">
-                            <iframe id="spotifyEmbed"
-                                    width="100%" 
-                                    height="456" 
-                                    frameborder="0" 
-                                    allowfullscreen="" 
-                                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" 
-                                    loading="lazy">
-                            </iframe>
-                        </div>
+    <!-- Main Content -->
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-12 col-lg-8">
+                <!-- Current Track Info -->
+                <div class="text-center mb-4">
+                    <div class="track-info-container bg-white bg-opacity-50 rounded-4 p-4 mb-4" id="currentTrackInfo">
+                        <!-- Current track info will be populated here -->
                     </div>
-                    <div class="info-section">
-                        <div class="info-card">
-                            <h2 class="info-title">Track Information</h2>
-                            <div class="info-grid" id="trackInfo">
-                                <!-- Track info will be populated here -->
-                            </div>
-                        </div>
-                        <div class="button-container">
-                            <button class="like-button" id="likeButton" onclick="toggleLike()">👍</button>
-                            <button class="like-button" id="nextButton" onclick="loadInitialTrack()">Next</button>
+                </div>
+                
+                <!-- Spotify Player -->
+                <div class="text-center mb-4">
+                    <div class="spotify-container bg-white bg-opacity-30 rounded-4 p-3">
+                        <iframe id="spotifyEmbed"
+                                width="100%" 
+                                height="380" 
+                                frameborder="0" 
+                                allowfullscreen="" 
+                                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" 
+                                loading="lazy"
+                                class="rounded-3">
+                        </iframe>
+                    </div>
+                </div>
+                
+                <!-- Audio Features -->
+                <div class="text-center">
+                    <div class="audio-features-container bg-white bg-opacity-30 rounded-4 p-4">
+                        <div class="audio-dials-container" id="audioDialsContainer">
+                            <!-- Audio feature dials will be populated here -->
                         </div>
                     </div>
                 </div>
-            </div>
-            <div class="liked-container">
-                <h2 class="liked-title">Liked Tracks</h2>
-                <ul class="liked-tracks-list" id="likedTracksList">
-                    <!-- Liked tracks will be populated here -->
-                </ul>
+                
+                <!-- Next Track Button -->
+                <div class="text-center mt-4">
+                    <button class="btn btn-music btn-lg px-5" id="nextButton" onclick="loadInitialTrack()">
+                        Next Track
+                    </button>
+                </div>
             </div>
         </div>
         
-        <!-- Adjustment Controls Frame -->
-        <div class="adjustment-container">
-            <h2 style="margin-top: 0; color: #333; text-align: center;">🎛️ Adjustment Controls</h2>
-            <div class="adjustment-content">
-                <div class="adjustment-left">
-                    <!-- Simple Control Buttons -->
-                    <div class="control-buttons">
-                        <div class="control-row">
-                            <span class="control-label">Danceability:</span>
-                            <button class="adjustment-btn decrease" onclick="adjustPool(0)">-</button>
-                            <button class="adjustment-btn increase" onclick="adjustPool(1)">+</button>
-                        </div>
-                        <div class="control-row">
-                            <span class="control-label">Energy:</span>
-                            <button class="adjustment-btn decrease" onclick="adjustPool(2)">-</button>
-                            <button class="adjustment-btn increase" onclick="adjustPool(3)">+</button>
-                        </div>
-                        <div class="control-row">
-                            <span class="control-label">Speechiness:</span>
-                            <button class="adjustment-btn decrease" onclick="adjustPool(4)">-</button>
-                            <button class="adjustment-btn increase" onclick="adjustPool(5)">+</button>
-                        </div>
-                        <div class="control-row">
-                            <span class="control-label">Valence:</span>
-                            <button class="adjustment-btn decrease" onclick="adjustPool(6)">-</button>
-                            <button class="adjustment-btn increase" onclick="adjustPool(7)">+</button>
-                        </div>
-                        <div class="control-row">
-                            <span class="control-label">Tempo:</span>
-                            <button class="adjustment-btn decrease" onclick="adjustPool(8)">-</button>
-                            <button class="adjustment-btn increase" onclick="adjustPool(9)">+</button>
-                        </div>
-                        
-                        <!-- Progressive Filters -->
-                        <div class="control-row" style="margin-top: 1rem; border-top: 1px solid #ddd; padding-top: 1rem;">
-                            <span class="control-label" style="font-weight: bold; color: #1DB954;">Progressive Acousticness:</span>
-                            <button class="adjustment-btn increase progressive" onclick="adjustPool(10)" title="50% → 75% → 90%+">++</button>
-                            <button class="adjustment-btn decrease progressive" onclick="adjustPool(11)" title="50% → 25% → 10%-">--</button>
-                        </div>
-                        <div class="control-row">
-                            <span class="control-label" style="font-weight: bold; color: #1DB954;">Progressive Instrumentalness:</span>
-                            <button class="adjustment-btn increase progressive" onclick="adjustPool(12)" title="50% → 75% → 90%+">++</button>
-                            <button class="adjustment-btn decrease progressive" onclick="adjustPool(13)" title="50% → 25% → 10%-">--</button>
-                        </div>
-                        <div class="control-row">
-                            <span class="control-label" style="font-weight: bold; color: #1DB954;">Progressive Liveness:</span>
-                            <button class="adjustment-btn increase progressive" onclick="adjustPool(14)" title="50% → 75% → 90%+">++</button>
-                            <button class="adjustment-btn decrease progressive" onclick="adjustPool(15)" title="50% → 25% → 10%-">--</button>
-                        </div>
-                    </div>
-                    
-                    <!-- Adjustment History Table -->
-                    <h3 style="margin-top: 2rem; color: #333;">📋 Adjustment History</h3>
-                    <table class="adjustment-table">
-                        <thead>
-                            <tr>
-                                <th rowspan="2">#</th>
-                                <th rowspan="2">Adjustment</th>
-                                <th rowspan="2">Time</th>
-                                <th colspan="2">Pool Size</th>
-                                <th colspan="5">Average Features After</th>
-                            </tr>
-                            <tr>
-                                <th>Before</th>
-                                <th>After</th>
-                                <th>Dance</th>
-                                <th>Energy</th>
-                                <th>Speech</th>
-                                <th>Valence</th>
-                                <th>Tempo</th>
-                            </tr>
-                        </thead>
-                        <tbody id="adjustmentHistoryTable">
-                            <tr>
-                                <td colspan="10" style="text-align: center; color: #666; font-style: italic;">No adjustments made yet</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="adjustment-right">
-                    <div class="pool-stats-container">
-                        <h3 style="margin-top: 0; color: #333;">📊 Pool Stats</h3>
-                        <div id="poolStats">
-                            <!-- Pool statistics will be populated here -->
-                        </div>
-                    </div>
-                    <button class="reset-button" onclick="resetPool()">🔄 Reset Pool</button>
-                </div>
-            </div>
-        </div>
+        <!-- Filter controls have been extracted to filter-controls.html for later restoration -->
     </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
         let currentTrackId = null;
@@ -510,10 +253,12 @@
 
         function updateLikeButton() {
             const likeButton = document.getElementById('likeButton');
-            if (likedTracks.has(currentTrackId)) {
-                likeButton.classList.add('liked');
-            } else {
-                likeButton.classList.remove('liked');
+            if (likeButton) {
+                if (likedTracks.has(currentTrackId)) {
+                    likeButton.classList.add('liked');
+                } else {
+                    likeButton.classList.remove('liked');
+                }
             }
         }
 
@@ -704,27 +449,96 @@
         }
 
         function updateTrackInfo(track) {
-            const infoGrid = document.getElementById('trackInfo');
-            const infoItems = [
-                { label: 'Track Name', value: track.track_name },
-                { label: 'Artist', value: track.artist_name },
-                { label: 'Genre', value: track.genre },
-                { label: 'Danceability', value: track.danceability },
-                { label: 'Energy', value: track.energy },
-                { label: 'Speechiness', value: track.speechiness },
-                { label: 'Valence', value: track.valence },
-                { label: 'Tempo', value: `${track.tempo} BPM` },
-                { label: 'Acousticness', value: track.acousticness },
-                { label: 'Instrumentalness', value: track.instrumentalness },
-                { label: 'Liveness', value: track.liveness }
+            // Update current track info in header
+            const currentTrackInfo = document.getElementById('currentTrackInfo');
+            currentTrackInfo.innerHTML = `
+                <div class="track-name">${track.track_name || 'Unknown Track'}</div>
+                <div class="track-artist">${track.artist_name || 'Unknown Artist'}</div>
+                <div class="track-genre">${track.genre || 'Unknown Genre'}</div>
+            `;
+
+            // Update audio feature dials
+            updateAudioDials(track);
+        }
+
+        function updateAudioDials(track) {
+            const audioFeatures = [
+                { 
+                    key: 'danceability', 
+                    value: track.danceability, 
+                    emoji: '💃', 
+                    label: 'Danceability',
+                    color: 'dial-danceability'
+                },
+                { 
+                    key: 'energy', 
+                    value: track.energy, 
+                    emoji: '⚡', 
+                    label: 'Energy',
+                    color: 'dial-energy'
+                },
+                { 
+                    key: 'speechiness', 
+                    value: track.speechiness, 
+                    emoji: '🗣️', 
+                    label: 'Speechiness',
+                    color: 'dial-speechiness'
+                },
+                { 
+                    key: 'valence', 
+                    value: track.valence, 
+                    emoji: '😊', 
+                    label: 'Valence',
+                    color: 'dial-valence'
+                },
+                { 
+                    key: 'tempo', 
+                    value: Math.min(track.tempo / 200, 1), // Normalize tempo to 0-1 scale
+                    emoji: '🥁', 
+                    label: 'Tempo',
+                    color: 'dial-tempo',
+                    displayValue: `${Math.round(track.tempo)}`
+                },
+                { 
+                    key: 'acousticness', 
+                    value: track.acousticness, 
+                    emoji: '🎸', 
+                    label: 'Acousticness',
+                    color: 'dial-acousticness'
+                },
+                { 
+                    key: 'instrumentalness', 
+                    value: track.instrumentalness, 
+                    emoji: '🎼', 
+                    label: 'Instrumental',
+                    color: 'dial-instrumentalness'
+                },
+                { 
+                    key: 'liveness', 
+                    value: track.liveness, 
+                    emoji: '🎤', 
+                    label: 'Liveness',
+                    color: 'dial-liveness'
+                }
             ];
 
-            infoGrid.innerHTML = infoItems.map(item => `
-                <div class="info-item">
-                    <span class="info-label">${item.label}</span>
-                    <span class="info-value">${formatValue(item.value)}</span>
-                </div>
-            `).join('');
+            const dialsContainer = document.getElementById('audioDialsContainer');
+            dialsContainer.innerHTML = audioFeatures.map(feature => {
+                const percentage = Math.round(feature.value * 100);
+                const rotation = -90 + (feature.value * 360);
+                const displayValue = feature.displayValue || `${percentage}%`;
+                
+                return `
+                    <div class="audio-dial" data-tooltip="${feature.label}: ${displayValue}">
+                        <div class="dial-circle"></div>
+                        <div class="dial-progress ${feature.color}" 
+                             style="--progress-rotation: ${rotation}deg;"></div>
+                        <div class="dial-content">
+                            <div class="dial-emoji">${feature.emoji}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
         }
 
         function adjustPool(adjustment) {
@@ -748,8 +562,6 @@
                 document.getElementById('spotifyEmbed').src = `https://open.spotify.com/embed/track/${track.track_id}?autoplay=1`;
                 updateTrackInfo(track);
                 updateLikeButton();
-                loadPoolStats(); // Refresh pool stats after adjustment
-                loadAdjustmentHistory(); // Refresh adjustment history
             })
             .catch(error => console.error('Error:', error));
         }
@@ -765,7 +577,6 @@
                     document.getElementById('spotifyEmbed').src = `https://open.spotify.com/embed/track/${track.track_id}?autoplay=1`;
                     updateTrackInfo(track);
                     updateLikeButton();
-                    loadPoolStats(); // Load pool stats with new track
                 })
                 .catch(error => {
                     console.error('Error:', error);
@@ -820,10 +631,8 @@
             }
         }
 
-        // Load initial track, liked tracks, adjustment history, and check auth status
+        // Load initial track and check auth status
         loadInitialTrack();
-        loadLikedTracks();
-        loadAdjustmentHistory();
         checkAuthStatus();
     </script>
 </body>

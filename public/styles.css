@@ -1,0 +1,651 @@
+/* Custom CSS Variables based on colors.json */
+:root {
+  /* Base colors */
+  --color-black: #100F0F;
+  --color-950: #1C1B1A;
+  --color-900: #282726;
+  --color-850: #343331;
+  --color-800: #403E3C;
+  --color-700: #575653;
+  --color-600: #6F6E69;
+  --color-500: #878580;
+  --color-300: #B7B5AC;
+  --color-200: #CECDC3;
+  --color-150: #DAD8CE;
+  --color-100: #E6E4D9;
+  --color-50: #F2F0E5;
+  --color-paper: #FFFCF0;
+  
+  /* Accent colors */
+  --color-red: #AF3029;
+  --color-red-light: #D14D41;
+  --color-orange: #BC5215;
+  --color-orange-light: #DA702C;
+  --color-yellow: #AD8301;
+  --color-yellow-light: #D0A215;
+  --color-green: #66800B;
+  --color-green-light: #879A39;
+  --color-cyan: #24837B;
+  --color-cyan-light: #3AA99F;
+  --color-blue: #205EA6;
+  --color-blue-light: #4385BE;
+  --color-purple: #5E409D;
+  --color-purple-light: #8B7EC8;
+  --color-magenta: #A02F6F;
+  --color-magenta-light: #CE5D97;
+  
+  /* Bootstrap override variables */
+  --bs-primary: var(--color-orange);
+  --bs-primary-rgb: 188, 82, 21;
+  --bs-secondary: var(--color-700);
+  --bs-secondary-rgb: 87, 86, 83;
+  --bs-success: var(--color-green);
+  --bs-success-rgb: 102, 128, 11;
+  --bs-info: var(--color-blue);
+  --bs-info-rgb: 32, 94, 166;
+  --bs-warning: var(--color-yellow);
+  --bs-warning-rgb: 173, 131, 1;
+  --bs-danger: var(--color-red);
+  --bs-danger-rgb: 175, 48, 41;
+  --bs-light: var(--color-100);
+  --bs-light-rgb: 230, 228, 217;
+  --bs-dark: var(--color-900);
+  --bs-dark-rgb: 40, 39, 38;
+  --bs-body-bg: var(--color-blue);
+  --bs-body-color: white;
+}
+
+/* Global styles */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background-color: var(--color-paper);
+  color: var(--color-900);
+}
+
+/* Custom button styles */
+.btn-music {
+  background-color: var(--color-orange);
+  border-color: var(--color-orange);
+  color: white;
+}
+
+.btn-music:hover {
+  background-color: var(--color-orange-light);
+  border-color: var(--color-orange-light);
+  color: white;
+}
+
+.btn-outline-music {
+  border-color: var(--color-orange);
+  color: var(--color-orange);
+}
+
+.btn-outline-music:hover {
+  background-color: var(--color-orange);
+  border-color: var(--color-orange);
+  color: white;
+}
+
+/* Genre Selection Page Styles */
+.genre-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  margin: 2rem 0;
+}
+
+.genre-tile {
+  background-color: var(--color-50);
+  border: 2px solid var(--color-orange);
+  border-radius: 12px;
+  padding: 2rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 150px;
+}
+
+.genre-tile:hover {
+  background-color: var(--color-orange);
+  color: white;
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(188, 82, 21, 0.25);
+}
+
+.genre-tile.selected {
+  background-color: var(--color-orange);
+  color: white;
+  box-shadow: 0 4px 15px rgba(188, 82, 21, 0.3);
+}
+
+.genre-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+  line-height: 1.3;
+}
+
+/* Music Player Styles */
+.music-player {
+  background: linear-gradient(135deg, var(--color-50) 0%, var(--color-100) 100%);
+  border: 1px solid var(--color-200);
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.track-info {
+  background-color: var(--color-paper);
+  border: 1px solid var(--color-150);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.track-title {
+  color: var(--color-900);
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.track-artist {
+  color: var(--color-600);
+  font-size: 1.125rem;
+  margin-bottom: 0.25rem;
+}
+
+.track-genre {
+  color: var(--color-500);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Filter Controls */
+.filter-controls {
+  background-color: var(--color-50);
+  border: 1px solid var(--color-200);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.filter-button {
+  background-color: var(--color-100);
+  border: 1px solid var(--color-300);
+  color: var(--color-800);
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  margin: 0.25rem;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.filter-button:hover {
+  background-color: var(--color-orange);
+  border-color: var(--color-orange);
+  color: white;
+  transform: translateY(-1px);
+}
+
+.filter-button.progressive {
+  background-color: var(--color-purple);
+  border-color: var(--color-purple);
+  color: white;
+}
+
+.filter-button.progressive:hover {
+  background-color: var(--color-purple-light);
+  border-color: var(--color-purple-light);
+}
+
+/* Stats Display */
+.stats-card {
+  background-color: var(--color-paper);
+  border: 1px solid var(--color-150);
+  border-radius: 10px;
+  padding: 1.25rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--color-150);
+}
+
+.stat-item:last-child {
+  border-bottom: none;
+}
+
+.stat-label {
+  color: var(--color-700);
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.stat-value {
+  color: var(--color-900);
+  font-weight: 600;
+  font-family: 'Monaco', 'Menlo', monospace;
+}
+
+/* Audio Feature Bars */
+.audio-feature {
+  margin-bottom: 1rem;
+}
+
+.audio-feature-label {
+  font-size: 0.9rem;
+  color: var(--color-700);
+  margin-bottom: 0.25rem;
+  text-transform: capitalize;
+}
+
+.audio-feature-bar {
+  height: 8px;
+  background-color: var(--color-200);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.audio-feature-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-orange) 0%, var(--color-orange-light) 100%);
+  transition: width 0.3s ease;
+  border-radius: 4px;
+}
+
+/* Authentication Header */
+.user-header {
+  background-color: var(--color-paper);
+  border-bottom: 1px solid var(--color-150);
+  padding: 1rem 0;
+  margin-bottom: 2rem;
+}
+
+.user-info {
+  color: var(--color-600);
+  font-size: 0.95rem;
+}
+
+.user-name {
+  font-weight: 600;
+  color: var(--color-orange);
+}
+
+.auth-link, .logout-btn {
+  color: var(--color-orange);
+  text-decoration: none;
+  font-size: 0.95rem;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  transition: color 0.2s ease;
+}
+
+.auth-link:hover, .logout-btn:hover {
+  color: var(--color-orange-light);
+  text-decoration: underline;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .genre-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.75rem;
+  }
+  
+  .genre-tile {
+    padding: 1.5rem;
+    min-height: 120px;
+  }
+  
+  .genre-title {
+    font-size: 1.1rem;
+  }
+  
+  .music-player {
+    padding: 1.5rem;
+  }
+  
+  .filter-controls {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .genre-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+  
+  .genre-tile {
+    padding: 1rem;
+    min-height: 100px;
+  }
+  
+  .genre-title {
+    font-size: 1rem;
+  }
+}
+
+/* Utility classes */
+.text-music {
+  color: var(--color-orange) !important;
+}
+
+.bg-music {
+  background-color: var(--color-orange) !important;
+}
+
+.border-music {
+  border-color: var(--color-orange) !important;
+}
+
+.shadow-soft {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+}
+
+.rounded-lg {
+  border-radius: 12px !important;
+}
+
+/* Squircle Buttons */
+.btn-expressive-clamshell {
+  background: var(--color-orange);
+  border: none;
+  color: white;
+  position: relative;
+  padding: 1.2rem 2.2rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  border-radius: 20px;
+}
+
+.btn-expressive-clamshell:hover {
+  transform: scale(1.1);
+}
+
+.btn-expressive-cookie {
+  background: var(--color-purple);
+  border: none;
+  color: white;
+  position: relative;
+  padding: 1.2rem 2.2rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  border-radius: 20px;
+}
+
+.btn-expressive-cookie:hover {
+  transform: scale(1.1);
+}
+
+.btn-expressive-puffy {
+  background: var(--color-cyan);
+  border: none;
+  color: white;
+  position: relative;
+  padding: 1.2rem 2.2rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  border-radius: 20px;
+}
+
+.btn-expressive-puffy:hover {
+  transform: scale(1.1);
+}
+
+/* Simple floating animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-4px); }
+}
+
+.btn-expressive-clamshell {
+  animation: float 6s ease-in-out infinite;
+  animation-delay: 0s;
+}
+
+.btn-expressive-cookie {
+  animation: float 6s ease-in-out infinite;
+  animation-delay: 2s;
+}
+
+.btn-expressive-puffy {
+  animation: float 6s ease-in-out infinite;
+  animation-delay: 4s;
+}
+
+/* Circular Audio Feature Dials */
+.audio-dials-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.audio-dial {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.dial-circle {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 4px solid var(--color-150);
+}
+
+.dial-progress {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 4px solid transparent;
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dial-progress::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  border-radius: 50%;
+  border: 4px solid currentColor;
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+  transform: rotate(var(--progress-rotation, -90deg));
+  transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dial-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+  height: 100%;
+}
+
+.dial-emoji {
+  font-size: 1.5rem;
+  line-height: 1;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.1));
+}
+
+.dial-value {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--color-900);
+  background: var(--color-paper);
+  border-radius: 10px;
+  padding: 0.1rem 0.3rem;
+  border: 1px solid var(--color-150);
+  margin-top: 0.2rem;
+  line-height: 1;
+}
+
+/* Current Track Info */
+.track-info-container .track-name {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  line-height: 1.2;
+  color: var(--color-900);
+}
+
+.track-info-container .track-artist {
+  font-size: 1.2rem;
+  font-weight: 500;
+  margin-bottom: 0.3rem;
+  color: var(--color-700);
+}
+
+.track-info-container .track-genre {
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-orange);
+  background-color: rgba(188, 82, 21, 0.1);
+  padding: 0.2rem 0.8rem;
+  border-radius: 20px;
+  display: inline-block;
+}
+
+/* Tooltip styles for audio dials */
+
+.audio-dial::before {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: -35px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-900);
+  color: var(--color-paper);
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.audio-dial::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 5px solid var(--color-900);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.audio-dial:hover::before,
+.audio-dial:hover::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Feature-specific colors */
+.dial-danceability {
+  color: var(--color-orange);
+}
+
+.dial-energy {
+  color: var(--color-red);
+}
+
+.dial-speechiness {
+  color: var(--color-blue);
+}
+
+.dial-valence {
+  color: var(--color-yellow);
+}
+
+.dial-tempo {
+  color: var(--color-green);
+}
+
+.dial-acousticness {
+  color: var(--color-purple);
+}
+
+.dial-instrumentalness {
+  color: var(--color-cyan);
+}
+
+.dial-liveness {
+  color: var(--color-magenta);
+}
+
+/* Hover animations */
+.audio-dial:hover {
+  transform: scale(1.1);
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.audio-dial:hover .dial-emoji {
+  transform: scale(1.2);
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .audio-dials-container {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.8rem;
+  }
+  
+  .audio-dial {
+    width: 70px;
+    height: 70px;
+  }
+  
+  .dial-emoji {
+    font-size: 1.2rem;
+  }
+  
+  .dial-value {
+    font-size: 0.6rem;
+  }
+}
