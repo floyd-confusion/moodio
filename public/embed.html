@@ -250,6 +250,7 @@
     <script>
         let currentTrackId = null;
         let likedTracks = new Set();
+        let currentUser = null;
 
         function updateLikeButton() {
             const likeButton = document.getElementById('likeButton');
@@ -541,47 +542,82 @@
             }).join('');
         }
 
-        function adjustPool(adjustment) {
-            fetch('/api/adjust_pool', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ adjustment: parseInt(adjustment) })
-            })
-            .then(response => response.json())
-            .then(result => {
-                if (!result.error) {
-                    return fetch('/api/track');
+        async function adjustPool(adjustment) {
+            if (!currentUser) {
+                console.error('No user authenticated for filter adjustment');
+                return;
+            }
+
+            try {
+                // Get current session ID from the backend
+                const sessionResponse = await fetch('/api/current_session');
+                const sessionData = await sessionResponse.json();
+
+                if (!sessionData.current_session || !sessionData.current_session.id) {
+                    throw new Error('No active session found');
                 }
-                throw new Error(result.error);
-            })
-            .then(response => response.json())
-            .then(track => {
+
+                const sessionId = sessionData.current_session.id;
+
+                // Apply filter to user session (this returns a track automatically)
+                const response = await fetch(`/api/user/${currentUser.id}/sessions/${sessionId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ adjustment: parseInt(adjustment) })
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    throw new Error(result.error);
+                }
+
+                // The PUT endpoint returns a track directly
+                if (result.track) {
+                    currentTrackId = result.track.track_id;
+                    document.getElementById('spotifyEmbed').src = `https://open.spotify.com/embed/track/${result.track.track_id}?autoplay=1`;
+                    updateTrackInfo(result.track);
+                    updateLikeButton();
+                } else {
+                    throw new Error('No track returned from filter adjustment');
+                }
+            } catch (error) {
+                console.error('Error adjusting pool:', error);
+                if (error.message.includes('No active session')) {
+                    window.location.href = '/sessions';
+                }
+            }
+        }
+
+        async function loadInitialTrack() {
+            if (!currentUser) {
+                console.log('No user authenticated yet, waiting...');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/user/${currentUser.id}/sessions/track`);
+                const track = await response.json();
+
+                if (track.error) {
+                    throw new Error(track.error);
+                }
+
                 currentTrackId = track.track_id;
                 document.getElementById('spotifyEmbed').src = `https://open.spotify.com/embed/track/${track.track_id}?autoplay=1`;
                 updateTrackInfo(track);
                 updateLikeButton();
-            })
-            .catch(error => console.error('Error:', error));
-        }
-
-        function loadInitialTrack() {
-            fetch('/api/track')
-                .then(response => response.json())
-                .then(track => {
-                    if (track.error) {
-                        throw new Error(track.error);
-                    }
-                    currentTrackId = track.track_id;
-                    document.getElementById('spotifyEmbed').src = `https://open.spotify.com/embed/track/${track.track_id}?autoplay=1`;
-                    updateTrackInfo(track);
-                    updateLikeButton();
-                })
-                .catch(error => {
-                    console.error('Error:', error);
+            } catch (error) {
+                console.error('Error loading track:', error);
+                if (error.message.includes('No active session')) {
+                    // Redirect to sessions page if no active session
+                    window.location.href = '/sessions';
+                } else {
                     window.location.href = '/';
-                });
+                }
+            }
         }
 
         // Authentication functions
@@ -589,10 +625,11 @@
             try {
                 const response = await fetch('/api/user');
                 const data = await response.json();
-                
+
                 const userHeader = document.getElementById('userHeader');
-                
+
                 if (data.authenticated) {
+                    currentUser = data.user;
                     // User is logged in
                     userHeader.innerHTML = `
                         <div class="user-info">
@@ -600,19 +637,17 @@
                         </div>
                         <button class="logout-btn" onclick="handleLogout()">Logout</button>
                     `;
+
+                    // Now that user is authenticated, load initial track
+                    loadInitialTrack();
                 } else {
-                    // User is not logged in
-                    userHeader.innerHTML = `
-                        <a href="/auth" class="auth-link">Login / Register</a>
-                    `;
+                    // User is not logged in, redirect to auth
+                    window.location.href = '/auth';
                 }
             } catch (error) {
                 console.error('Error checking auth status:', error);
-                // Show login link if there's an error
-                const userHeader = document.getElementById('userHeader');
-                userHeader.innerHTML = `
-                    <a href="/auth" class="auth-link">Login / Register</a>
-                `;
+                // Redirect to auth on error
+                window.location.href = '/auth';
             }
         }
         
@@ -631,8 +666,7 @@
             }
         }
 
-        // Load initial track and check auth status
-        loadInitialTrack();
+        // Check auth status first, then load track after authentication
         checkAuthStatus();
     </script>
 </body>

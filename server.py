@@ -1,5 +1,6 @@
 from flask import Flask, send_from_directory, jsonify, request, session
 import logging
+from datetime import datetime
 from src.dataset import genre_groups
 from src.session import Session, get_all_sessions, delete_session
 from src.auth import register_user, authenticate_user, get_user_by_id, AuthError
@@ -11,25 +12,64 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__, static_folder='public')
 app.secret_key = 'music-recommendation-system-key'  # Enable sessions
 
-# Initialize default session
-current_session = None
+def get_current_session(session_id=None):
+    """Get or create the current session for the current user (no global state)"""
 
-def get_current_session():
-    """Get or create the current session"""
-    global current_session
-    if current_session is None:
-        # Try to get the most recent session or create a new one
-        sessions = get_all_sessions()
-        if sessions:
-            # Use the most recent session
-            session_info = sessions[0]
-            current_session = Session(session_info['id'], session_info['name'])
-            logger.info(f"Loaded existing session: {session_info['name']}")
+    # If a specific session_id is requested, load that session
+    if session_id is not None:
+        try:
+            requested_session = Session(session_id)
+            # Verify user access if they are logged in
+            user_id = session.get('user_id')
+            if user_id and requested_session.user_id and requested_session.user_id != user_id:
+                logger.warning(f"User {user_id} denied access to session {session_id} (owner: {requested_session.user_id})")
+                return None
+            logger.info(f"Loaded specific session {session_id}: {requested_session.name}")
+            return requested_session
+        except Exception as e:
+            logger.error(f"Failed to load session {session_id}: {e}")
+            return None
+
+    # Get active session for current user from Flask session storage
+    stored_session_id = session.get('active_session_id')
+    if stored_session_id:
+        try:
+            user_session = Session(stored_session_id)
+            # Verify ownership
+            user_id = session.get('user_id')
+            if user_id and user_session.user_id and user_session.user_id != user_id:
+                logger.warning(f"Session ownership mismatch for user {user_id}, clearing session")
+                session.pop('active_session_id', None)
+            else:
+                logger.debug(f"Using active session {stored_session_id}: {user_session.name}")
+                return user_session
+        except Exception as e:
+            logger.warning(f"Failed to load active session {stored_session_id}: {e}")
+            session.pop('active_session_id', None)
+
+    # No active session found, create or find one for this user
+    user_id = session.get('user_id')
+
+    if user_id:
+        # For logged-in users, try to get their most recent session
+        user_sessions = get_all_sessions(user_id)
+        if user_sessions:
+            session_info = user_sessions[0]
+            user_session = Session(session_info['id'], session_info['name'])
+            session['active_session_id'] = user_session.session_id
+            logger.info(f"Auto-selected user's most recent session: {session_info['name']}")
+            return user_session
         else:
-            # Create a new default session
-            current_session = Session.create_new("Default Session")
-            logger.info("Created new default session")
-    return current_session
+            # Create a default session for the user (shouldn't happen with new flow, but fallback)
+            user_session = Session.create_new("My First Session", user_id)
+            session['active_session_id'] = user_session.session_id
+            logger.info(f"Created fallback session for user {user_id}")
+            return user_session
+    else:
+        # For anonymous users, create a temporary session (shouldn't happen in new flow)
+        anonymous_session = Session.create_new("Guest Session")
+        logger.info("Created temporary anonymous session")
+        return anonymous_session
 
 @app.route('/')
 def serve_index():
@@ -42,6 +82,10 @@ def serve_genres():
 @app.route('/auth')
 def serve_auth():
     return send_from_directory(app.static_folder, 'auth.html')
+
+@app.route('/sessions')
+def serve_sessions():
+    return send_from_directory(app.static_folder, 'sessions.html')
 
 @app.route('/api/genres')
 def get_genres():
@@ -63,6 +107,8 @@ def set_genre():
     dataset = session_obj.get_dataset()
     
     if dataset.set_genre_pool(genre_group):
+        # Update session metadata with selected genre
+        session_obj.update_session_metadata(genre_group=genre_group)
         session_obj.save_state()
         return jsonify({
             'message': f'Genre pool set for {genre_group}',
@@ -72,18 +118,6 @@ def set_genre():
         })
     return jsonify({'error': 'Invalid genre group or no tracks found'}), 400
 
-@app.route('/api/track')
-def get_track():
-    """Get a random track from the current pool"""
-    logger.debug("API: Getting random track")
-    session_obj = get_current_session()
-    dataset = session_obj.get_dataset()
-    
-    track = dataset.get_random_track()
-    if track is None:
-        logger.warning("API: No tracks available in current pool")
-        return jsonify({'error': 'No tracks available in the current pool'}), 400
-    return jsonify(track)
 
 @app.route('/api/adjust_pool', methods=['POST'])
 def adjust_pool():
@@ -172,112 +206,7 @@ def get_adjustment_history():
     history = dataset.get_adjustment_history()
     return jsonify({'adjustments': history})
 
-@app.route('/api/clear_adjustments', methods=['POST'])
-def clear_adjustments():
-    """Clear filter queue and reset pool"""
-    logger.info("API: Clearing filters and resetting pool")
-    session_obj = get_current_session()
-    dataset = session_obj.get_dataset()
-    
-    if dataset.clear_adjustment_history():
-        return jsonify({
-            'message': 'Filter queue cleared and pool reset',
-            'genre_pool_size': len(dataset.genre_pool) if dataset.genre_pool is not None else 0,
-            'playback_pool_size': len(dataset.playback_pool) if dataset.playback_pool is not None else 0
-        })
-    return jsonify({'error': 'Failed to clear filters'}), 400
-
-@app.route('/api/filter_queue')
-def get_filter_queue():
-    """Get current filter queue"""
-    logger.debug("API: Getting filter queue")
-    session_obj = get_current_session()
-    dataset = session_obj.get_dataset()
-    
-    return jsonify({
-        'filter_queue': dataset.filter_queue,
-        'queue_length': len(dataset.filter_queue)
-    })
-
-
-@app.route('/api/pool_tracks')
-def get_pool_tracks():
-    """Get all tracks in current playback pool"""
-    logger.debug("API: Getting all tracks in current pool")
-    session_obj = get_current_session()
-    dataset = session_obj.get_dataset()
-    
-    pool_to_use = dataset.playback_pool if dataset.playback_pool is not None and not dataset.playback_pool.empty else dataset.genre_pool
-    
-    if pool_to_use is None or pool_to_use.empty:
-        logger.warning("API: No tracks available in current pool")
-        return jsonify({'error': 'No tracks available in current pool'}), 400
-    
-    # Convert DataFrame to list of track dictionaries
-    tracks = []
-    for _, track in pool_to_use.iterrows():
-        tracks.append({
-            'track_id': track['track_id'],
-            'track_name': track['track_name'],
-            'artist_name': track['artists'],
-            'genre': track['track_genre'],
-            'danceability': track['danceability'],
-            'energy': track['energy'],
-            'speechiness': track['speechiness'],
-            'valence': track['valence'],
-            'tempo': track['tempo'],
-            'acousticness': track['acousticness'],
-            'instrumentalness': track['instrumentalness'],
-            'liveness': track['liveness']
-        })
-    
-    return jsonify({
-        'tracks': tracks,
-        'total_count': len(tracks),
-        'pool_type': 'playback' if dataset.playback_pool is not None and not dataset.playback_pool.empty else 'genre'
-    })
-
-@app.route('/api/fresh_injection_config')
-def get_fresh_injection_config():
-    """Get current fresh injection configuration"""
-    logger.debug("API: Getting fresh injection config")
-    session_obj = get_current_session()
-    dataset = session_obj.get_dataset()
-    
-    return jsonify(dataset.get_fresh_injection_config())
-
-@app.route('/api/fresh_injection_config', methods=['POST'])
-def set_fresh_injection_config():
-    """Set fresh injection configuration"""
-    data = request.get_json()
-    if not data:
-        logger.warning("API: fresh_injection_config POST called without data")
-        return jsonify({'error': 'No configuration data provided'}), 400
-    
-    session_obj = get_current_session()
-    dataset = session_obj.get_dataset()
-    
-    if 'fresh_injection_ratio' in data:
-        ratio = data['fresh_injection_ratio']
-        try:
-            ratio = float(ratio)
-            if dataset.set_fresh_injection_ratio(ratio):
-                session_obj.save_state()
-                logger.info(f"API: Fresh injection ratio set to {ratio:.1%}")
-                return jsonify({
-                    'message': f'Fresh injection ratio set to {ratio:.1%}',
-                    'config': dataset.get_fresh_injection_config()
-                })
-            else:
-                return jsonify({'error': 'Invalid ratio. Must be between 0.0 and 1.0'}), 400
-        except (ValueError, TypeError):
-            logger.warning(f"API: Invalid fresh injection ratio format: {ratio}")
-            return jsonify({'error': 'Invalid ratio format. Must be a number between 0.0 and 1.0'}), 400
-    
-    return jsonify({'error': 'No valid configuration parameters provided'}), 400
-
 # Authentication Endpoints
-
 @app.route('/api/register', methods=['POST'])
 def register():
     """Register a new user"""
@@ -368,71 +297,6 @@ def get_current_user():
         session.clear()
         return jsonify({'user': None, 'authenticated': False})
 
-# Session Management Endpoints
-
-@app.route('/api/sessions', methods=['GET'])
-def get_sessions():
-    """Get sessions (user's sessions if authenticated, all sessions if anonymous)"""
-    logger.debug("API: Getting sessions")
-    
-    user_id = session.get('user_id')
-    
-    if user_id:
-        # Get user's sessions
-        sessions = get_all_sessions(user_id)
-        logger.debug(f"API: Returning {len(sessions)} sessions for user {user_id}")
-    else:
-        # Get all sessions for anonymous users
-        sessions = get_all_sessions()
-        logger.debug(f"API: Returning {len(sessions)} sessions for anonymous user")
-    
-    return jsonify({'sessions': sessions})
-
-@app.route('/api/sessions', methods=['POST'])
-def create_session():
-    """Create a new session"""
-    data = request.get_json()
-    if not data or 'name' not in data:
-        logger.warning("API: create_session called without name")
-        return jsonify({'error': 'Session name is required'}), 400
-    
-    name = data['name'].strip()
-    if not name:
-        logger.warning("API: create_session called with empty name")
-        return jsonify({'error': 'Session name cannot be empty'}), 400
-    
-    # Get current user if authenticated
-    user_id = session.get('user_id')
-    
-    try:
-        new_session = Session.create_new(name, user_id)
-        logger.info(f"API: Created new session: {name} (User: {user_id})")
-        return jsonify({
-            'message': f'Session "{name}" created successfully',
-            'session': new_session.get_session_info()
-        }), 201
-    except Exception as e:
-        logger.error(f"API: Error creating session: {e}")
-        return jsonify({'error': 'Failed to create session'}), 500
-
-@app.route('/api/sessions/<int:session_id>', methods=['GET'])
-def get_session(session_id):
-    """Get session details by ID"""
-    logger.debug(f"API: Getting session {session_id}")
-    try:
-        session_obj = Session(session_id)
-        
-        # Check if user has access to this session
-        user_id = session.get('user_id')
-        if session_obj.user_id is not None and session_obj.user_id != user_id:
-            logger.warning(f"API: User {user_id} denied access to session {session_id} (owner: {session_obj.user_id})")
-            return jsonify({'error': 'Access denied to this session'}), 403
-            
-        return jsonify({'session': session_obj.get_session_info()})
-    except Exception as e:
-        logger.warning(f"API: Session {session_id} not found: {e}")
-        return jsonify({'error': 'Session not found'}), 404
-
 @app.route('/api/sessions/<int:session_id>', methods=['PUT'])
 def update_session(session_id):
     """Update session name"""
@@ -440,24 +304,24 @@ def update_session(session_id):
     if not data or 'name' not in data:
         logger.warning(f"API: update_session called for {session_id} without name")
         return jsonify({'error': 'Session name is required'}), 400
-    
+
     name = data['name'].strip()
     if not name:
         logger.warning(f"API: update_session called for {session_id} with empty name")
         return jsonify({'error': 'Session name cannot be empty'}), 400
-    
+
     try:
         from utils.db import get_db
         db = get_db()
         rows_affected = db.update('sessions', {'name': name}, 'id = ?', (session_id,))
-        
+
         if rows_affected > 0:
             logger.info(f"API: Updated session {session_id} name to: {name}")
             return jsonify({'message': f'Session name updated to "{name}"'})
         else:
             logger.warning(f"API: Session {session_id} not found for update")
             return jsonify({'error': 'Session not found'}), 404
-            
+
     except Exception as e:
         logger.error(f"API: Error updating session {session_id}: {e}")
         return jsonify({'error': 'Failed to update session'}), 500
@@ -466,29 +330,29 @@ def update_session(session_id):
 def delete_session_endpoint(session_id):
     """Delete a session"""
     logger.info(f"API: Deleting session {session_id}")
-    
+
     try:
         # Check if user has access to delete this session
         session_obj = Session(session_id)
         user_id = session.get('user_id')
-        
+
         if session_obj.user_id is not None and session_obj.user_id != user_id:
             logger.warning(f"API: User {user_id} denied delete access to session {session_id} (owner: {session_obj.user_id})")
             return jsonify({'error': 'Access denied to delete this session'}), 403
-        
-        # Don't allow deleting the current session
-        global current_session
-        if current_session and current_session.session_id == session_id:
+
+        # Don't allow deleting the current active session
+        active_session_id = session.get('active_session_id')
+        if active_session_id == session_id:
             logger.warning(f"API: Cannot delete active session {session_id}")
             return jsonify({'error': 'Cannot delete the currently active session'}), 400
-        
+
         if delete_session(session_id):
             logger.info(f"API: Session {session_id} deleted successfully")
             return jsonify({'message': 'Session deleted successfully'})
         else:
             logger.warning(f"API: Session {session_id} not found for deletion")
             return jsonify({'error': 'Session not found'}), 404
-            
+
     except Exception as e:
         logger.warning(f"API: Session {session_id} not found: {e}")
         return jsonify({'error': 'Session not found'}), 404
@@ -499,6 +363,299 @@ def get_current_session_info():
     logger.debug("API: Getting current session info")
     session_obj = get_current_session()
     return jsonify({'current_session': session_obj.get_session_info()})
+
+@app.route('/api/current_session', methods=['POST'])
+def set_current_session():
+    """Set the current active session"""
+    logger.debug("API: Setting current session")
+
+    data = request.get_json()
+    if not data or 'session_id' not in data:
+        logger.warning("API: set_current_session called without session_id")
+        return jsonify({'error': 'Session ID is required'}), 400
+
+    session_id = data['session_id']
+    try:
+        session_id = int(session_id)
+    except ValueError:
+        logger.warning(f"API: Invalid session_id: {session_id}")
+        return jsonify({'error': 'Invalid session ID'}), 400
+
+    # Switch to the requested session
+    session_obj = get_current_session(session_id)
+    if session_obj is None:
+        logger.warning(f"API: Could not access session {session_id}")
+        return jsonify({'error': 'Session not found or access denied'}), 404
+
+    # Store the active session ID in Flask session
+    session['active_session_id'] = session_id
+
+    logger.info(f"API: Current session set to {session_id}")
+    return jsonify({
+        'message': 'Current session updated',
+        'current_session': session_obj.get_session_info()
+    })
+
+@app.route('/api/user/<int:user_id>/sessions', methods=['GET'])
+def get_user_sessions(user_id):
+    """Get all sessions for a specific user"""
+    logger.info(f"API: Getting sessions for user {user_id}")
+
+    # Check if user is authenticated and matches the requested user_id
+    current_user_id = session.get('user_id')
+    if not current_user_id:
+        logger.warning("API: Unauthenticated user trying to access sessions")
+        return jsonify({'error': 'Authentication required'}), 401
+
+    if current_user_id != user_id:
+        logger.warning(f"API: User {current_user_id} trying to access sessions for user {user_id}")
+        return jsonify({'error': 'Access denied'}), 403
+
+    try:
+        from src.session import get_all_sessions
+        sessions = get_all_sessions(user_id)
+
+        # Enhance session data with metadata
+        enhanced_sessions = []
+        for session_info in sessions:
+            try:
+                session_obj = Session(session_info['id'])
+                enhanced_info = session_obj.get_session_info()
+                enhanced_sessions.append(enhanced_info)
+            except Exception as e:
+                logger.warning(f"Error enhancing session {session_info['id']}: {e}")
+                enhanced_sessions.append(session_info)
+
+        logger.info(f"API: Returning {len(enhanced_sessions)} sessions for user {user_id}")
+        return jsonify({'sessions': enhanced_sessions})
+
+    except Exception as e:
+        logger.error(f"API: Error getting sessions for user {user_id}: {e}")
+        return jsonify({'error': 'Failed to retrieve sessions'}), 500
+
+@app.route('/api/user/<int:user_id>/sessions', methods=['POST'])
+def create_user_session(user_id):
+    """Create a new session for a specific user"""
+    logger.info(f"API: Creating new session for user {user_id}")
+    
+    # Check if user is authenticated and matches the requested user_id
+    current_user_id = session.get('user_id')
+    if not current_user_id:
+        logger.warning("API: Unauthenticated user trying to create session")
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    if current_user_id != user_id:
+        logger.warning(f"API: User {current_user_id} trying to create session for user {user_id}")
+        return jsonify({'error': 'Access denied'}), 403
+    
+    try:
+        data = request.get_json()
+        if not data or 'name' not in data or 'genre' not in data:
+            logger.warning("API: create_user_session called without required parameters")
+            return jsonify({'error': 'Session name and genre are required'}), 400
+
+        session_name = data['name'].strip()
+        genre_group = data['genre'].strip()
+
+        if not session_name:
+            logger.warning("API: create_user_session called with empty session name")
+            return jsonify({'error': 'Session name cannot be empty'}), 400
+
+        if not genre_group:
+            logger.warning("API: create_user_session called with empty genre")
+            return jsonify({'error': 'Genre is required'}), 400
+
+        # Validate genre group
+        from src.dataset import genre_groups
+        if genre_group not in genre_groups:
+            logger.warning(f"API: Invalid genre group: {genre_group}")
+            return jsonify({'error': 'Invalid genre group'}), 400
+
+        # Create new session
+        new_session = Session.create_new(session_name, user_id)
+
+        # Set the genre pool immediately
+        dataset = new_session.get_dataset()
+        if dataset.set_genre_pool(genre_group):
+            # Update session metadata with genre
+            new_session.update_session_metadata(genre_group=genre_group)
+            new_session.save_state()
+        else:
+            # Clean up the session if genre setting failed
+            delete_session(new_session.session_id)
+            return jsonify({'error': f'Failed to set genre pool for {genre_group}'}), 400
+
+        session_info = new_session.get_session_info()
+
+        logger.info(f"API: Created new session {new_session.session_id} for user {user_id}: {session_name} ({genre_group})")
+        return jsonify({
+            'message': 'Session created successfully',
+            'session': session_info
+        }), 201
+        
+    except Exception as e:
+        logger.error(f"API: Error creating session for user {user_id}: {e}")
+        return jsonify({'error': 'Failed to create session'}), 500
+
+@app.route('/api/user/<int:user_id>/sessions/<int:session_id>', methods=['PUT'])
+def update_user_session(user_id, session_id):
+    """Update/adjust a specific session (replaces adjust_pool endpoint)"""
+    logger.info(f"API: Updating session {session_id} for user {user_id}")
+    
+    # Check if user is authenticated and matches the requested user_id
+    current_user_id = session.get('user_id')
+    if not current_user_id:
+        logger.warning("API: Unauthenticated user trying to update session")
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    if current_user_id != user_id:
+        logger.warning(f"API: User {current_user_id} trying to update session for user {user_id}")
+        return jsonify({'error': 'Access denied'}), 403
+    
+    try:
+        # Load the session and verify ownership
+        session_obj = Session(session_id)
+        if session_obj.user_id != user_id:
+            logger.warning(f"API: User {user_id} trying to update session {session_id} owned by {session_obj.user_id}")
+            return jsonify({'error': 'Access denied to this session'}), 403
+        
+        data = request.get_json()
+        if not data:
+            logger.warning("API: update_user_session called without data")
+            return jsonify({'error': 'Request data is required'}), 400
+        
+        # Handle adjustment (filter) operations
+        if 'adjustment' in data:
+            adjustment = data['adjustment']
+            try:
+                adjustment = int(adjustment)
+                if not 0 <= adjustment <= 15:
+                    logger.warning(f"API: Invalid adjustment value {adjustment}")
+                    return jsonify({'error': 'Adjustment must be between 0 and 15'}), 400
+            except ValueError:
+                logger.warning(f"API: Non-integer adjustment value: {adjustment}")
+                return jsonify({'error': 'Invalid adjustment value'}), 400
+
+            # Map adjustment to filter type
+            filter_map = {
+                0: 'filter_decrease_danceability',
+                1: 'filter_increase_danceability',
+                2: 'filter_decrease_energy',
+                3: 'filter_increase_energy',
+                4: 'filter_decrease_speechiness',
+                5: 'filter_increase_speechiness',
+                6: 'filter_decrease_valence',
+                7: 'filter_increase_valence',
+                8: 'filter_decrease_tempo',
+                9: 'filter_increase_tempo',
+                10: 'filter_progressive_increase_acousticness',
+                11: 'filter_progressive_decrease_acousticness',
+                12: 'filter_progressive_increase_instrumentalness',
+                13: 'filter_progressive_decrease_instrumentalness',
+                14: 'filter_progressive_increase_liveness',
+                15: 'filter_progressive_decrease_liveness'
+            }
+
+            filter_type = filter_map.get(adjustment)
+            if not filter_type:
+                logger.warning(f"API: Unknown adjustment value {adjustment}")
+                return jsonify({'error': 'Invalid adjustment value'}), 400
+
+            logger.info(f"API: Adding filter {filter_type} to session {session_id}")
+
+            # Add filter to session
+            if not session_obj.add_filter(filter_type, adjustment):
+                logger.error(f"API: Failed to add filter to session {session_id}")
+                return jsonify({'error': 'Failed to add filter to session'}), 500
+
+            # Get a track using the reconstructed dataset (this will implement the filter reconstruction logic)
+            dataset = session_obj.get_dataset()
+            track = dataset.get_random_track()
+            if track is None:
+                logger.warning("API: No tracks available after applying filter")
+                return jsonify({'error': 'No tracks available after applying filter'}), 400
+
+            # Update last track in session
+            session_obj.update_session_metadata(last_track_id=track['track_id'])
+
+            return jsonify({
+                'message': 'Filter applied successfully',
+                'track': track,
+                'filter_applied': filter_type,
+                'pool_size': len(dataset.playback_pool) if dataset.playback_pool is not None else 0
+            })
+        
+        # Handle other session updates (name, etc.)
+        updated = False
+        if 'name' in data:
+            session_name = data['name'].strip()
+            if session_name:
+                session_obj.db.update(
+                    'sessions',
+                    {'name': session_name, 'updated_at': datetime.now().isoformat()},
+                    'id = ?',
+                    (session_id,)
+                )
+                updated = True
+        
+        if updated:
+            session_obj.save_state()
+            return jsonify({
+                'message': 'Session updated successfully',
+                'session': session_obj.get_session_info()
+            })
+        else:
+            return jsonify({'error': 'No valid updates provided'}), 400
+            
+    except Exception as e:
+        logger.error(f"API: Error updating session {session_id} for user {user_id}: {e}")
+        return jsonify({'error': 'Failed to update session'}), 500
+
+@app.route('/api/user/<int:user_id>/sessions/track', methods=['GET'])
+def get_user_session_track(user_id):
+    """Get a random track from the user's active session"""
+    logger.debug(f"API: Getting track for user {user_id}")
+
+    # Check if user is authenticated and matches the requested user_id
+    current_user_id = session.get('user_id')
+    if not current_user_id:
+        logger.warning("API: Unauthenticated user trying to get track")
+        return jsonify({'error': 'Authentication required'}), 401
+
+    if current_user_id != user_id:
+        logger.warning(f"API: User {current_user_id} trying to get track for user {user_id}")
+        return jsonify({'error': 'Access denied'}), 403
+
+    try:
+        # Get user's active session
+        session_obj = get_current_session()
+        if session_obj is None:
+            logger.warning(f"API: No active session found for user {user_id}")
+            return jsonify({'error': 'No active session found'}), 404
+
+        # Verify session ownership
+        if session_obj.user_id != user_id:
+            logger.warning(f"API: Session ownership mismatch for user {user_id}")
+            return jsonify({'error': 'Session access denied'}), 403
+
+        # Get dataset with filters applied
+        dataset = session_obj.get_dataset()
+
+        # Get a random track from the current pool
+        track = dataset.get_random_track()
+        if track is None:
+            logger.warning(f"API: No tracks available in active session for user {user_id}")
+            return jsonify({'error': 'No tracks available in the current pool'}), 400
+
+        # Update session metadata with last played track
+        session_obj.update_session_metadata(last_track_id=track['track_id'])
+
+        logger.info(f"API: Served track {track['track_id']} to user {user_id}")
+        return jsonify(track)
+
+    except Exception as e:
+        logger.error(f"API: Error getting track for user {user_id}: {e}")
+        return jsonify({'error': 'Failed to get track'}), 500
 
 @app.route('/<path:path>')
 def serve_static(path):

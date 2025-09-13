@@ -185,7 +185,7 @@ class Dataset:
         # Apply radius constraints for each feature
         for feature in self.audio_features:
             avg_value = pool_averages[feature]
-
+            logger.debug(f"Average {feature} value: {avg_value:.3f}")
             if feature == 'tempo':
                 # Use percentage-based radius for tempo (same as filters)
                 tempo_radius = avg_value * tempo_radius_factor
@@ -202,7 +202,6 @@ class Dataset:
                 (candidates[feature] <= max_val)
                 ]
 
-            logger.debug(f"After {feature} radius filter: {len(candidates)} tracks remaining")
 
         # If no tracks within radius, fall back to closest unshown tracks
         if candidates.empty:
@@ -615,53 +614,6 @@ class Dataset:
         self.shown_tracks.clear()
         logger.info(f"Cleared {shown_count} shown tracks")
         return True
-
-    def get_fresh_injection_ratio(self):
-        """Get fresh injection ratio, preferring session value over default"""
-        return session.get('fresh_injection_ratio', self.fresh_injection_ratio)
-
-    def set_fresh_injection_ratio(self, ratio):
-        """Set fresh injection ratio for both instance and session"""
-        if 0.0 <= ratio <= 1.0:
-            self.fresh_injection_ratio = ratio
-            session['fresh_injection_ratio'] = ratio
-            logger.info(f"Fresh injection ratio set to {ratio:.1%}")
-            return True
-        else:
-            logger.error(f"Invalid fresh injection ratio: {ratio}. Must be between 0.0 and 1.0")
-            return False
-
-    def get_fresh_injection_config(self):
-        """Get current fresh injection configuration"""
-        return {
-            'fresh_injection_ratio': self.get_fresh_injection_ratio(),
-            'pool_size_multiplier': self.pool_size_multiplier,
-            'description': {
-                'fresh_injection_ratio': f'{self.get_fresh_injection_ratio():.1%} old tracks, {1 - self.get_fresh_injection_ratio():.1%} new tracks',
-                'pool_size_multiplier': f'Target size = filter_result_size × {self.pool_size_multiplier}'
-            }
-        }
-
-    def get_selection_config(self):
-        """Get current track selection configuration"""
-        return {
-            'use_average_centered_selection': self.use_average_centered_selection,
-            'description': {
-                'strategy': 'Average-centered (avoids extremes)' if self.use_average_centered_selection else 'Pure random',
-                'explanation': 'Selects tracks closer to pool averages to avoid extreme outliers' if self.use_average_centered_selection else 'Completely random selection from pool'
-            }
-        }
-
-    def set_selection_strategy(self, use_average_centered):
-        """Set track selection strategy"""
-        if isinstance(use_average_centered, bool):
-            self.use_average_centered_selection = use_average_centered
-            strategy = 'average-centered' if use_average_centered else 'random'
-            logger.info(f"Track selection strategy set to: {strategy}")
-            return True
-        else:
-            logger.error(f"Invalid selection strategy: {use_average_centered}. Must be boolean")
-            return False
 
     def _remove_contradicting_filter(self, filter_queue, new_adjustment_id, new_filter_record):
         """Return filter queue with contradicting filter handled - either add new filter or drop both"""

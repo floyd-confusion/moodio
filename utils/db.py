@@ -77,6 +77,8 @@ class DatabaseManager:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name VARCHAR(255) NOT NULL,
                 user_id INTEGER,
+                genre_group VARCHAR(255),
+                last_track_id VARCHAR(255),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -95,12 +97,24 @@ class DatabaseManager:
             )
         ''')
         
-        # Session state table
+        # Session state table (simplified)
         conn.execute('''
             CREATE TABLE IF NOT EXISTS session_state (
                 session_id INTEGER PRIMARY KEY,
                 current_genre VARCHAR(100),
                 fresh_injection_ratio REAL DEFAULT 0.3,
+                FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+            )
+        ''')
+
+        # Session filters table for stateless filter management
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS session_filters (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER NOT NULL,
+                filter_type VARCHAR(50) NOT NULL,
+                filter_value INTEGER,
+                applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
             )
         ''')
@@ -112,6 +126,21 @@ class DatabaseManager:
         except sqlite3.OperationalError:
             # Column already exists
             pass
+        
+        # Add genre_group column to existing sessions table if it doesn't exist
+        try:
+            conn.execute('ALTER TABLE sessions ADD COLUMN genre_group VARCHAR(255)')
+            logger.info("Added genre_group column to existing sessions table")
+        except sqlite3.OperationalError:
+            pass
+        
+        # Add last_track_id column to existing sessions table if it doesn't exist
+        try:
+            conn.execute('ALTER TABLE sessions ADD COLUMN last_track_id VARCHAR(255)')
+            logger.info("Added last_track_id column to existing sessions table")
+        except sqlite3.OperationalError:
+            pass
+        
         
         conn.commit()
         logger.info("Database tables created successfully")

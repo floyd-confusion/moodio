@@ -75,8 +75,8 @@ class Session:
         return cls(session_id, name, user_id)
     
     def get_dataset(self) -> Dataset:
-        """Get the dataset instance for this session."""
-        return self.dataset
+        """Get the dataset instance for this session with all filters applied."""
+        return self.get_dataset_with_filters()
     
     def add_liked_track(self, track_index: int) -> bool:
         """
@@ -189,13 +189,13 @@ class Session:
                 (self.session_id,)
             )
             
-            # Update session state
+            # Update session state (only basic session info, no filter state)
             current_genre = getattr(self.dataset, 'current_genre_group', None)
             fresh_ratio = getattr(self.dataset, 'fresh_injection_ratio', 0.3)
-            
+
             self.db.execute(
-                """INSERT OR REPLACE INTO session_state 
-                   (session_id, current_genre, fresh_injection_ratio) 
+                """INSERT OR REPLACE INTO session_state
+                   (session_id, current_genre, fresh_injection_ratio)
                    VALUES (?, ?, ?)""",
                 (self.session_id, current_genre, fresh_ratio)
             )
@@ -212,7 +212,7 @@ class Session:
         try:
             # Load basic session info
             session_row = self.db.fetch_one(
-                "SELECT name, user_id FROM sessions WHERE id = ?",
+                "SELECT name, user_id, genre_group, last_track_id FROM sessions WHERE id = ?",
                 (self.session_id,)
             )
             
@@ -220,17 +220,17 @@ class Session:
                 self.name = session_row['name']
                 self.user_id = session_row['user_id']
             
-            # Load session state
+            # Load session state (simplified - no filter state)
             state_row = self.db.fetch_one(
                 "SELECT current_genre, fresh_injection_ratio FROM session_state WHERE session_id = ?",
                 (self.session_id,)
             )
-            
+
             if state_row:
                 if state_row['current_genre']:
                     # Restore genre pool if one was set
                     self.dataset.set_genre_pool(state_row['current_genre'])
-                
+
                 # Restore fresh injection ratio
                 if state_row['fresh_injection_ratio'] is not None:
                     self.dataset.set_fresh_injection_ratio(state_row['fresh_injection_ratio'])
@@ -240,6 +240,40 @@ class Session:
         except Exception as e:
             logger.error(f"Error loading state for session {self.session_id}: {e}")
     
+    def update_session_metadata(self, genre_group: str = None, last_track_id: str = None) -> bool:
+        """
+        Update session metadata in database.
+        
+        Args:
+            genre_group: Genre group for this session
+            last_track_id: ID of the last played track
+            
+        Returns:
+            True if update was successful
+        """
+        try:
+            update_data = {'updated_at': datetime.now().isoformat()}
+            
+            if genre_group is not None:
+                update_data['genre_group'] = genre_group
+            
+            if last_track_id is not None:
+                update_data['last_track_id'] = last_track_id
+            
+            self.db.update(
+                'sessions',
+                update_data,
+                'id = ?',
+                (self.session_id,)
+            )
+            
+            logger.debug(f"Session metadata updated for session {self.session_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error updating session metadata for session {self.session_id}: {e}")
+            return False
+
     def get_session_info(self) -> Dict[str, Any]:
         """
         Get session information.
@@ -247,14 +281,165 @@ class Session:
         Returns:
             Dictionary with session details
         """
+        # Get current session data from database
+        session_row = self.db.fetch_one(
+            "SELECT name, user_id, genre_group, last_track_id, created_at, updated_at FROM sessions WHERE id = ?",
+            (self.session_id,)
+        )
+        
+        # Get filter count from session_filters table
+        filter_count_row = self.db.fetch_one(
+            "SELECT COUNT(*) as filter_count FROM session_filters WHERE session_id = ?",
+            (self.session_id,)
+        )
+        filter_count = filter_count_row['filter_count'] if filter_count_row else 0
+
         return {
             'id': self.session_id,
-            'name': self.name,
-            'user_id': self.user_id,
+            'name': session_row['name'] if session_row else self.name,
+            'user_id': session_row['user_id'] if session_row else self.user_id,
+            'genre_group': session_row['genre_group'] if session_row else None,
+            'last_track_id': session_row['last_track_id'] if session_row else None,
+            'created_at': session_row['created_at'] if session_row else None,
+            'updated_at': session_row['updated_at'] if session_row else None,
             'liked_tracks_count': len(self.get_liked_tracks()),
+            'pool_size': 0,  # Will be calculated dynamically when needed
+            'adjustment_count': filter_count,
             'current_genre': getattr(self.dataset, 'current_genre_group', None),
             'fresh_injection_ratio': getattr(self.dataset, 'fresh_injection_ratio', 0.3)
         }
+
+    def add_filter(self, filter_type: str, filter_value: int = None) -> bool:
+        """
+        Add a filter to this session.
+
+        Args:
+            filter_type: Type of filter (e.g., 'increase_danceability', 'decrease_energy')
+            filter_value: Optional filter value (0-15 for adjustments)
+
+        Returns:
+            True if filter was added successfully
+        """
+        try:
+            self.db.execute(
+                "INSERT INTO session_filters (session_id, filter_type, filter_value) VALUES (?, ?, ?)",
+                (self.session_id, filter_type, filter_value)
+            )
+
+            # Update session timestamp
+            self.update_session_metadata()
+
+            logger.info(f"Added filter {filter_type} to session {self.session_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error adding filter to session {self.session_id}: {e}")
+            return False
+
+    def get_filters(self) -> List[Dict[str, Any]]:
+        """
+        Get all filters for this session in chronological order.
+
+        Returns:
+            List of filter dictionaries
+        """
+        try:
+            filters = self.db.fetch_all(
+                "SELECT filter_type, filter_value, applied_at FROM session_filters WHERE session_id = ? ORDER BY applied_at ASC",
+                (self.session_id,)
+            )
+
+            return [
+                {
+                    'filter_type': row['filter_type'],
+                    'filter_value': row['filter_value'],
+                    'applied_at': row['applied_at']
+                }
+                for row in filters
+            ]
+
+        except Exception as e:
+            logger.error(f"Error getting filters for session {self.session_id}: {e}")
+            return []
+
+    def clear_filters(self) -> bool:
+        """
+        Clear all filters for this session.
+
+        Returns:
+            True if filters were cleared successfully
+        """
+        try:
+            self.db.execute(
+                "DELETE FROM session_filters WHERE session_id = ?",
+                (self.session_id,)
+            )
+
+            # Update session timestamp
+            self.update_session_metadata()
+
+            logger.info(f"Cleared all filters for session {self.session_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error clearing filters for session {self.session_id}: {e}")
+            return False
+
+    def get_dataset_with_filters(self) -> 'Dataset':
+        """
+        Get the dataset for this session with all filters applied.
+        This reconstructs the dataset state from the filters table each time.
+
+        Returns:
+            Dataset instance with filters applied
+        """
+        try:
+            # Start with a fresh dataset
+            from src.dataset import Dataset
+            dataset = Dataset()
+
+            # Load session info to get the genre
+            session_row = self.db.fetch_one(
+                "SELECT genre_group FROM sessions WHERE id = ?",
+                (self.session_id,)
+            )
+
+            if session_row and session_row['genre_group']:
+                # Set genre pool
+                if not dataset.set_genre_pool(session_row['genre_group']):
+                    logger.error(f"Failed to set genre pool for session {self.session_id}")
+                    return dataset
+
+                # Get all filters for this session in chronological order
+                filters = self.get_filters()
+
+                # Apply each filter in order
+                for filter_info in filters:
+                    filter_type = filter_info['filter_type']
+                    filter_value = filter_info['filter_value']
+
+                    # Apply the filter using the dataset's filter system
+                    try:
+                        # Use the same adjustment logic but directly
+                        result, status_code = dataset.adjust_pool(filter_value)
+                        if status_code != 200:
+                            logger.warning(f"Filter {filter_type} failed for session {self.session_id}: {result}")
+                            # Continue with other filters even if one fails
+                    except Exception as filter_error:
+                        logger.error(f"Error applying filter {filter_type} for session {self.session_id}: {filter_error}")
+                        # Continue with other filters
+
+                logger.debug(f"Reconstructed dataset for session {self.session_id} with {len(filters)} filters")
+            else:
+                logger.warning(f"No genre set for session {self.session_id}")
+
+            return dataset
+
+        except Exception as e:
+            logger.error(f"Error reconstructing dataset for session {self.session_id}: {e}")
+            # Return a basic dataset as fallback
+            from src.dataset import Dataset
+            return Dataset()
 
 
 def get_all_sessions(user_id: int = None) -> List[Dict[str, Any]]:
