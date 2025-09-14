@@ -13,7 +13,7 @@
     
     <style>
         /* Custom styles specific to embed page */
-        .spotify-embed {
+        .player-container {
             margin: 4rem 0;
             border-radius: 16px;
             overflow: hidden;
@@ -364,6 +364,65 @@
                 margin-left: 1rem;
             }
         }
+
+        /* Toggle Switch Styles */
+        .playback-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+            margin: 0;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.3s;
+            border-radius: 24px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .toggle-slider {
+            background-color: #FF0000; /* YouTube Red */
+        }
+
+        input:checked + .toggle-slider:before {
+            transform: translateX(26px);
+        }
+
+        .toggle-label {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #333;
+        }
     </style>
 </head>
 <body>
@@ -379,6 +438,13 @@
                 <button class="sidebar-toggle" onclick="toggleSidebar()">
                     ❤️ Liked Tracks
                 </button>
+                <div class="playback-toggle ms-3">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="playbackToggle" onchange="togglePlaybackType()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-label">YouTube</span>
+                </div>
                 <div id="userHeader" class="ms-3">
                     <!-- User info will be added here by JavaScript -->
                 </div>
@@ -397,18 +463,30 @@
                     </div>
                 </div>
                 
-                <!-- Spotify Player -->
+                <!-- Music Player -->
                 <div class="text-center mb-4">
-                    <div class="spotify-container bg-white bg-opacity-30 rounded-4 p-3">
+                    <div class="player-container bg-white bg-opacity-30 rounded-4 p-3">
+                        <!-- Spotify Player -->
                         <iframe id="spotifyEmbed"
-                                width="100%" 
-                                height="380" 
-                                frameborder="0" 
-                                allowfullscreen="" 
-                                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" 
+                                width="100%"
+                                height="380"
+                                frameborder="0"
+                                allowfullscreen=""
+                                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                                 loading="lazy"
-                                class="rounded-3">
+                                class="rounded-3"
+                                style="display: none;">
                         </iframe>
+
+                        <!-- YouTube Player -->
+                        <iframe id="youtubeEmbed"
+                                width="560"
+                                height="315"
+                                title="YouTube video player"
+                                frameborder="0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                referrerpolicy="no-referrer-when-downgrade"
+                                allowfullscreen></iframe>
                     </div>
                 </div>
                 
@@ -979,7 +1057,7 @@
                 // The PUT endpoint returns a track directly
                 if (result.track) {
                     currentTrackId = result.track.track_id;
-                    document.getElementById('spotifyEmbed').src = `https://open.spotify.com/embed/track/${result.track.track_id}?autoplay=1`;
+                    renderPlayer(result.track);
                     updateTrackInfo(result.track);
                     updateLikeButton();
                 } else {
@@ -1017,7 +1095,7 @@
                 }
 
                 currentTrackId = track.track_id;
-                document.getElementById('spotifyEmbed').src = `https://open.spotify.com/embed/track/${track.track_id}?autoplay=1`;
+                renderPlayer(track);
                 updateTrackInfo(track);
                 updateLikeButton();
                 renderFilterButtons();
@@ -1059,6 +1137,7 @@
                     // Now that user is authenticated, load initial track and liked tracks
                     loadInitialTrack();
                     loadLikedTracks();
+                    initializePlaybackToggle();
                 } else {
                     // User is not logged in, redirect to auth
                     window.location.href = '/auth';
@@ -1082,6 +1161,73 @@
                 }
             } catch (error) {
                 console.error('Error logging out:', error);
+            }
+        }
+
+        async function togglePlaybackType() {
+            if (!currentUser) return;
+
+            const toggle = document.getElementById('playbackToggle');
+            const newPlaybackType = toggle.checked ? 'youtube' : 'spotify';
+
+            try {
+                const response = await fetch(`/api/user/${currentUser.id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        playback_type: newPlaybackType
+                    })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    currentUser = result.user; // Update current user data
+                    console.log(`Playback type changed to: ${newPlaybackType}`);
+
+                    // Reload the current track with new playback type
+                    await loadInitialTrack();
+                } else {
+                    console.error('Failed to update playback type');
+                    // Revert toggle state
+                    toggle.checked = currentUser.playback_type === 'youtube';
+                }
+            } catch (error) {
+                console.error('Error updating playback type:', error);
+                // Revert toggle state
+                toggle.checked = currentUser.playback_type === 'youtube';
+            }
+        }
+
+        function renderPlayer(track) {
+            const spotifyEmbed = document.getElementById('spotifyEmbed');
+            const youtubeEmbed = document.getElementById('youtubeEmbed');
+
+            if (!currentUser) {
+                console.error('No user data available for player rendering');
+                return;
+            }
+
+            if (currentUser.playback_type === 'youtube' && track.youtube_video_id) {
+                // Show YouTube player
+                spotifyEmbed.style.display = 'none';
+                youtubeEmbed.style.display = 'block';
+                youtubeEmbed.src = `https://www.youtube.com/embed/${track.youtube_video_id}?si=dA-RzM4YTvZJgoRh&amp;controls=0&amp;start=60`;
+                console.log(`Rendering YouTube player: ${track.youtube_video_id}`);
+            } else {
+                // Show Spotify player (default)
+                youtubeEmbed.style.display = 'none';
+                spotifyEmbed.style.display = 'block';
+                spotifyEmbed.src = `https://open.spotify.com/embed/track/${track.track_id}?autoplay=1`;
+                console.log(`Rendering Spotify player: ${track.track_id}`);
+            }
+        }
+
+        function initializePlaybackToggle() {
+            if (currentUser) {
+                const toggle = document.getElementById('playbackToggle');
+                toggle.checked = currentUser.playback_type === 'youtube';
             }
         }
 

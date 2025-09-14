@@ -74,9 +74,6 @@ class Dataset:
         self.audio_features = ['danceability', 'energy', 'speechiness', 'valence', 'tempo', 'acousticness', 'instrumentalness', 'liveness']
         self.controlled_features = []
 
-        # Track selection strategy
-        self.use_average_centered_selection = True  # Avoid extremes by selecting near averages
-
         self.shown_tracks = set()  # Store tracks that have been shown to avoid repetition
 
         # Legacy compatibility (deprecated)
@@ -114,7 +111,7 @@ class Dataset:
         logger.info(f"Genre pool set with {pool_size} tracks from genres: {group_genres}")
         return pool_size > 0
 
-    def get_random_track(self):
+    def get_random_track(self, shown_tracks):
         """Get a track from the current pool using configured selection strategy"""
         # Use playback pool if it has tracks, otherwise use genre pool
         pool_to_use = self.playback_pool if self.playback_pool is not None and not self.playback_pool.empty else self.genre_pool
@@ -123,17 +120,9 @@ class Dataset:
             logger.warning("Attempted to get track from empty pool")
             return None
 
-        # Select track based on configured strategy
-        if self.use_average_centered_selection:
-            track = self._get_average_centered_track(pool_to_use)
-        else:
-            # For pure random, also exclude shown tracks
-            unshown_pool = pool_to_use[~pool_to_use['track_id'].isin(self.shown_tracks)]
-            if unshown_pool.empty:
-                logger.info(f"All tracks shown, resetting shown tracks history")
-                self.shown_tracks.clear()
-                unshown_pool = pool_to_use.copy()
-            track = unshown_pool.sample(n=1).iloc[0]
+        # For pure random, also exclude shown tracks
+        unshown_pool = pool_to_use[~pool_to_use['track_id'].isin(shown_tracks)]
+        track = self._get_average_centered_track(unshown_pool)
 
         # Record that this track has been shown
         track_id = track['track_id']
@@ -454,7 +443,7 @@ class Dataset:
            video_id or None if not found
         """
         # Clean and format search query
-        search_query = f"{track_name} {artist_name}".strip()
+        search_query = f"{track_name.replace(' ', '+')}+{artist_name.replace(' ', '+').replace(';','+')}"
         try:
             # Get API key from parameter or environment variable
             youtube_api_key = os.environ.get('YOUTUBE_API_KEY')
@@ -463,13 +452,10 @@ class Dataset:
                 logger.warning("YouTube API key not provided and YOUTUBE_API_KEY environment variable not set")
                 return None
 
-            # URL encode the search query
-            encoded_query = urllib.parse.quote(search_query)
-
             url_params = {
                 'part': 'snippet',
                 'type': 'video',
-                'q': encoded_query,
+                'q': search_query,
                 'videoCategoryId': 10,
                 'videoDuration': 'medium',
                 'regionCode': 'US',

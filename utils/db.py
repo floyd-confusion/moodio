@@ -148,6 +148,13 @@ class DatabaseManager:
             logger.info("Added last_track_id column to existing sessions table")
         except sqlite3.OperationalError:
             pass
+
+        # Add playback_type column to existing users table if it doesn't exist
+        try:
+            conn.execute('ALTER TABLE users ADD COLUMN playback_type VARCHAR(50) DEFAULT "spotify"')
+            logger.info("Added playback_type column to existing users table")
+        except sqlite3.OperationalError:
+            pass
         
         
         conn.commit()

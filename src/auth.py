@@ -223,16 +223,17 @@ def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
     try:
         db = get_db()
         user = db.fetch_one(
-            "SELECT id, username, created_at, last_login FROM users WHERE id = ?",
+            "SELECT id, username, created_at, last_login, playback_type FROM users WHERE id = ?",
             (user_id,)
         )
-        
+
         if user:
             return {
                 'id': user['id'],
                 'username': user['username'],
                 'created_at': user['created_at'],
-                'last_login': user['last_login']
+                'last_login': user['last_login'],
+                'playback_type': user['playback_type'] or 'spotify'  # Default to spotify if null
             }
         
         return None

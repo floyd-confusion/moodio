@@ -342,7 +342,6 @@ class Session:
             logger.error(f"Error getting filters for session {self.session_id}: {e}")
             return []
 
-
     def get_dataset(self) -> 'Dataset':
         """
         Get the dataset for this session with all filters applied.
@@ -382,6 +381,8 @@ class Session:
             from src.dataset import Dataset
             return Dataset()
 
+    def add_shown_track(self):
+        pass
 
 def get_all_sessions(user_id: int = None) -> List[Dict[str, Any]]:
     """

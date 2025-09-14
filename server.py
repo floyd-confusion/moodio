@@ -5,6 +5,7 @@ from src.dataset import genre_groups
 from src.session import Session, get_all_sessions, delete_session
 from src.auth import register_user, authenticate_user, get_user_by_id, AuthError
 from src.filters import FILTER_REGISTRY
+from utils.db import init_db, get_db
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -94,56 +95,6 @@ def get_genres():
     genres =  list(genre_groups.keys())
     return jsonify(genres)
 
-# @app.route('/api/set_genre', methods=['POST'])
-# def set_genre():
-#     """Set the genre pool based on the selected genre group"""
-#     data = request.get_json()
-#     if not data or 'genre' not in data:
-#         logger.warning("API: set_genre called without genre data")
-#         return jsonify({'error': 'No genre provided'}), 400
-#
-#     genre_group = data['genre']
-#     logger.info(f"API: Setting genre pool to {genre_group}")
-#     session_obj = get_current_session()
-#     dataset = session_obj.get_dataset()
-#
-#     if dataset.set_genre_pool(genre_group):
-#         # Update session metadata with selected genre
-#         session_obj.update_session_metadata(genre_group=genre_group)
-#         session_obj.save_state()
-#         return jsonify({
-#             'message': f'Genre pool set for {genre_group}',
-#             'genre_pool_size': len(dataset.genre_pool),
-#             'playback_pool_size': len(dataset.playback_pool),
-#             'filters_cleared': True
-#         })
-#     return jsonify({'error': 'Invalid genre group or no tracks found'}), 400
-
-
-# @app.route('/api/adjust_pool', methods=['POST'])
-# def adjust_pool():
-#     adjustment = request.json.get('adjustment')
-#     if adjustment is None:
-#         logger.warning("API: adjust_pool called without adjustment value")
-#         return jsonify({'error': 'No adjustment value provided'}), 400
-#
-#     try:
-#         adjustment = int(adjustment)
-#         if not 0 <= adjustment <= 15:
-#             logger.warning(f"API: Invalid adjustment value {adjustment}")
-#             return jsonify({'error': 'Adjustment must be between 0 and 15'}), 400
-#     except ValueError:
-#         logger.warning(f"API: Non-integer adjustment value: {adjustment}")
-#         return jsonify({'error': 'Invalid adjustment value'}), 400
-#
-#     logger.info(f"API: Processing pool adjustment {adjustment}")
-#     session_obj = get_current_session()
-#     dataset = session_obj.get_dataset()
-#
-#     result, status_code = dataset.adjust_pool(adjustment)
-#     return jsonify(result), status_code
-
-
 @app.route('/api/track/<track_id>')
 def get_track_by_id(track_id):
     """Get track details by ID"""
@@ -156,26 +107,6 @@ def get_track_by_id(track_id):
         logger.warning(f"API: Track not found: {track_id}")
         return jsonify({'error': 'Track not found'}), 404
     return jsonify(track)
-
-# @app.route('/api/pool_stats')
-# def get_pool_stats():
-#     """Get current pool statistics"""
-#     logger.debug("API: Getting pool statistics")
-#     session_obj = get_current_session()
-#     dataset = session_obj.get_dataset()
-#
-#     stats = dataset.get_pool_stats()
-#     return jsonify(stats)
-
-# @app.route('/api/adjustment_history')
-# def get_adjustment_history():
-#     """Get adjustment history"""
-#     logger.debug("API: Getting adjustment history")
-#     session_obj = get_current_session()
-#     dataset = session_obj.get_dataset()
-#
-#     history = dataset.get_adjustment_history()
-#     return jsonify({'adjustments': history})
 
 # Authentication Endpoints
 @app.route('/api/register', methods=['POST'])
@@ -268,6 +199,49 @@ def get_current_user():
         session.clear()
         return jsonify({'user': None, 'authenticated': False})
 
+@app.route('/api/user/<int:user_id>', methods=['PUT'])
+def update_user(user_id):
+    """Update user settings"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request body required'}), 400
+
+        # Validate user_id matches current session
+        current_user_id = session.get('user_id')
+        if not current_user_id or current_user_id != user_id:
+            return jsonify({'error': 'Unauthorized'}), 401
+
+        # Validate playback_type if provided
+        playback_type = data.get('playback_type')
+        if playback_type and playback_type not in ['spotify', 'youtube']:
+            return jsonify({'error': 'Invalid playback_type. Must be "spotify" or "youtube"'}), 400
+
+        # Update user in database
+        db = get_db()
+        update_data = {}
+
+        if playback_type:
+            update_data['playback_type'] = playback_type
+
+        if not update_data:
+            return jsonify({'error': 'No valid fields to update'}), 400
+
+        rows_updated = db.update('users', update_data, 'id = ?', (user_id,))
+
+        if rows_updated == 0:
+            return jsonify({'error': 'User not found'}), 404
+
+        # Return updated user info
+        user_info = get_user_by_id(user_id)
+        logger.info(f"User {user_id} updated: {update_data}")
+
+        return jsonify({'user': user_info, 'message': 'User updated successfully'})
+
+    except Exception as e:
+        logger.error(f"Error updating user {user_id}: {e}")
+        return jsonify({'error': 'Failed to update user'}), 500
+
 @app.route('/api/sessions/<int:session_id>', methods=['PUT'])
 def update_session(session_id):
     """Update session name"""
@@ -282,7 +256,6 @@ def update_session(session_id):
         return jsonify({'error': 'Session name cannot be empty'}), 400
 
     try:
-        from utils.db import get_db
         db = get_db()
         rows_affected = db.update('sessions', {'name': name}, 'id = ?', (session_id,))
 
@@ -383,7 +356,6 @@ def get_user_sessions(user_id):
         return jsonify({'error': 'Access denied'}), 403
 
     try:
-        from src.session import get_all_sessions
         sessions = get_all_sessions(user_id)
 
         # Enhance session data with metadata
@@ -492,7 +464,6 @@ def get_user_current_session(user_id):
             return jsonify({'current_session': None})
 
         # Verify the session exists and belongs to the user
-        from src.session import Session
         try:
             session_obj = Session(current_session_id)
             if session_obj.user_id != user_id:
@@ -537,7 +508,6 @@ def set_user_current_session(user_id):
         session_id = data['session_id']
 
         # Verify the session exists and belongs to the user
-        from src.session import Session
         try:
             session_obj = Session(session_id)
             if session_obj.user_id != user_id:
@@ -624,7 +594,6 @@ def get_session_likes(user_id, session_id):
 
     try:
         # Load the session and verify ownership
-        from src.session import Session
         try:
             session_obj = Session(session_id)
         except Exception as e:
@@ -666,7 +635,6 @@ def add_session_like(user_id, session_id):
 
     try:
         # Load the session and verify ownership
-        from src.session import Session
         try:
             session_obj = Session(session_id)
         except Exception as e:
@@ -727,7 +695,6 @@ def get_user_session_track(user_id, session_id):
 
     try:
         # Load the specific session
-        from src.session import Session
         try:
             session_obj = Session(session_id)
         except Exception as e:
@@ -751,6 +718,23 @@ def get_user_session_track(user_id, session_id):
         # Update session metadata
         session_obj.update_session_metadata(last_track_id=track['track_id'])
 
+        # Check user's playback type and add YouTube video ID if needed
+        user_info = get_user_by_id(user_id)
+        if user_info and user_info.get('playback_type') == 'youtube':
+            try:
+                # Get YouTube video ID for this track
+                youtube_video_id = dataset.get_youtube_video_id(
+                    track['track_name'],
+                    track['artist_name']
+                )
+                if youtube_video_id:
+                    track['youtube_video_id'] = youtube_video_id
+                    logger.debug(f"Added YouTube video ID {youtube_video_id} for track {track['track_id']}")
+                else:
+                    logger.warning(f"No YouTube video found for track {track['track_id']}")
+            except Exception as e:
+                logger.error(f"Error fetching YouTube video ID for track {track['track_id']}: {e}")
+
         logger.info(f"API: Served track {track['track_id']} to user {user_id} from session {session_id}")
         return jsonify(track)
 
@@ -765,7 +749,6 @@ def serve_static(path):
 if __name__ == '__main__':
     # Initialize database
     logger.info("Initializing database...")
-    from utils.db import init_db
     init_db('music_app.db')
     
     logger.info("Starting Flask server on port 3001")
