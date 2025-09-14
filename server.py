@@ -709,11 +709,16 @@ def get_user_session_track(user_id, session_id):
         # Get dataset with filters applied
         dataset = session_obj.get_dataset()
 
+        # Get shown tracks
+        shown_tracks = session_obj.get_shown_tracks()
+
         # Get a random track from the current pool
-        track = dataset.get_random_track()
+        track = dataset.get_random_track(shown_tracks=shown_tracks)
         if track is None:
             logger.warning(f"API: No tracks available in session {session_id} for user {user_id}")
-            return jsonify({'error': 'No tracks available in the current pool'}), 400
+            return jsonify({'error': 'No tracks available in the current pool'}), 404
+
+        session_obj.add_shown_track(track['track_id'])
 
         # Update session metadata
         session_obj.update_session_metadata(last_track_id=track['track_id'])

@@ -126,6 +126,10 @@ class Dataset:
 
         # Record that this track has been shown
         track_id = track['track_id']
+
+        if not track:
+            return None
+
         self.shown_tracks.add(track_id)
 
         logger.debug(
@@ -457,7 +461,6 @@ class Dataset:
                 'type': 'video',
                 'q': search_query,
                 'videoCategoryId': 10,
-                'videoDuration': 'medium',
                 'regionCode': 'US',
                 'maxResults': 10,
                 'key': youtube_api_key,

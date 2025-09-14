@@ -155,8 +155,17 @@ class DatabaseManager:
             logger.info("Added playback_type column to existing users table")
         except sqlite3.OperationalError:
             pass
-        
-        
+
+        # Session shown tracks table
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS session_shown_tracks (
+                dataset_id VARCHAR(255) NOT NULL,
+                session_id INTEGER NOT NULL,
+                FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+                PRIMARY KEY (dataset_id, session_id)
+            ) WITHOUT ROWID;''')
+
+
         conn.commit()
         logger.info("Database tables created successfully")
     

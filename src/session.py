@@ -381,8 +381,37 @@ class Session:
             from src.dataset import Dataset
             return Dataset()
 
-    def add_shown_track(self):
-        pass
+    def add_shown_track(self, dataset_id: str) -> None:
+        """
+        Add a track to the shown tracks table for this session.
+
+        Args:
+            dataset_id: The dataset ID of the track that was shown
+        """
+        try:
+            self.db.execute(
+                "INSERT OR IGNORE INTO session_shown_tracks (dataset_id, session_id) VALUES (?, ?)",
+                (dataset_id, self.session_id)
+            )
+        except Exception as e:
+            logger.error(f"Error adding shown track {dataset_id} for session {self.session_id}: {e}")
+
+    def get_shown_tracks(self) -> List[str]:
+        """
+        Get list of dataset IDs for tracks shown in this session.
+
+        Returns:
+            List of dataset IDs that have been shown
+        """
+        try:
+            result = self.db.fetch_all(
+                "SELECT dataset_id FROM session_shown_tracks WHERE session_id = ?",
+                (self.session_id,)
+            )
+            return [row['dataset_id'] for row in result]
+        except Exception as e:
+            logger.error(f"Error retrieving shown tracks for session {self.session_id}: {e}")
+            return []
 
 def get_all_sessions(user_id: int = None) -> List[Dict[str, Any]]:
     """
