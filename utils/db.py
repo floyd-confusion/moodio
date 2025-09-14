@@ -183,7 +183,8 @@ class DatabaseManager:
             Single row as sqlite3.Row or None
         """
         cursor = self.execute(query, params)
-        return cursor.fetchone()
+        result = cursor.fetchone()
+        return dict(result)
     
     def fetch_all(self, query: str, params: Optional[Tuple] = None) -> List[sqlite3.Row]:
         """

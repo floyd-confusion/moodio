@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 genre_groups = {
     "Pop & Mainstream": [
         "pop", "power-pop", "dance", "dancehall", "edm", "synth-pop",
-        "indie-pop", "j-pop", "k-pop", "mandopop", "cantopop", "latin",
+        "in`die-pop", "j-pop", "k-pop", "mandopop", "cantopop", "latin",
         "latino", "swedish", "party", "pop-film", "show-tunes", "romance"
     ],
     "Rock & Alternative": [
@@ -233,56 +233,19 @@ class Dataset:
 
         return track
 
-    def adjust_pool(self, adjustment):
+    def rebuild_playback_pool(self):
         """Add a filter to the queue and rebuild the playback pool"""
         if self.genre_pool is None:
             logger.error("Adjustment attempted without genre pool selected")
-            return {'error': 'No genre pool selected'}, 400
+            return
 
-        # Parameter mapping (even numbers = decrease, odd numbers = increase)
-        filter_map = {
-            0: 'filter_decrease_danceability',
-            1: 'filter_increase_danceability',
-            2: 'filter_decrease_energy',
-            3: 'filter_increase_energy',
-            4: 'filter_decrease_speechiness',
-            5: 'filter_increase_speechiness',
-            6: 'filter_decrease_valence',
-            7: 'filter_increase_valence',
-            8: 'filter_decrease_tempo',
-            9: 'filter_increase_tempo',
-            10: 'filter_progressive_increase_acousticness',
-            11: 'filter_progressive_decrease_acousticness',
-            12: 'filter_progressive_increase_instrumentalness',
-            13: 'filter_progressive_decrease_instrumentalness',
-            14: 'filter_progressive_increase_liveness',
-            15: 'filter_progressive_decrease_liveness'
-        }
-
-        # Get the filter function name
-        filter_name = filter_map.get(adjustment)
-        if not filter_name:
-            logger.error(f"Invalid adjustment value: {adjustment}")
-            return {'error': 'Invalid adjustment value. Must be between 0 and 15'}, 400
-
-        # Check if filter function exists
-        if filter_name not in FILTER_REGISTRY:
-            logger.error(f"Filter function not found: {filter_name}")
-            return {'error': f'Filter not implemented: {filter_name}'}, 500
-
-        # Handle contradicting filters - either add new filter or drop both
-        filter_record = {
-            'timestamp': datetime.now().isoformat(),
-            'adjustment_id': adjustment,
-            'filter_name': filter_name
-        }
-        self.filter_queue = self._remove_contradicting_filter(self.filter_queue, adjustment, filter_record)
+        self.filter_queue = self._remove_contradicting_filter(self.filter_queue, )
 
         # Rebuild playback pool by applying all filters in sequence
         pool_size_before = len(self.playback_pool) if self.playback_pool is not None else 0
 
         for p in range(5):
-            self._rebuild_playback_pool(1 * 1.2 ** p)
+            self._apply_filter_queue(1 * 1.2 ** p)
             pool_size_after = len(self.playback_pool)
             if pool_size_after >= self.minimum_pool_threshold:
                 logger.info(f"Filters applied: {pool_size_before} → {pool_size_after} tracks")
@@ -291,24 +254,6 @@ class Dataset:
 
         if pool_size < self.minimum_pool_threshold:
             logger.warning(f"Playback pool size below minimum threshold: {pool_size} < {self.minimum_pool_threshold}")
-
-        # Add to legacy adjustment history
-        param_direction = filter_name.replace('filter_', '').replace('_', ' ')
-        adjustment_record = {
-            'timestamp': filter_record['timestamp'],
-            'adjustment_id': adjustment,
-            'parameter': param_direction.split(' ')[1],  # e.g., 'danceability'
-            'direction': param_direction.split(' ')[0],  # e.g., 'increase'
-            'pool_size_before': pool_size_before,
-            'pool_size_after': pool_size,
-            'avg_stats_after': self._get_pool_averages()
-        }
-        self.adjustment_history.append(adjustment_record)
-
-        return {
-            'remaining_tracks': pool_size,
-            'filters_in_queue': len(self.filter_queue)
-        }, 200
 
     def _calculate_reduction_rate(self, pool_before, pool_after):
         """Calculate the reduction rate from filter application"""
@@ -369,7 +314,7 @@ class Dataset:
             logger.warning("Pool mixing failed, using new filter result only")
             return new_filtered_result
 
-    def _rebuild_playback_pool(self, radius_multiplier):
+    def _apply_filter_queue(self, radius_multiplier):
         """Rebuild playback pool by applying filters one-by-one with mixing after each"""
         if self.genre_pool is None:
             logger.warning("Cannot rebuild playback pool: no genre pool set")
@@ -389,53 +334,48 @@ class Dataset:
             f"Applying features with {radius_multiplier}x radius multiplier")
         # Apply each filter one-by-one with mixing after each
         for i, filter_record in enumerate(self.filter_queue):
-            filter_name = filter_record['filter_name']
-            filter_func = FILTER_REGISTRY.get(filter_name)
-            filter_feature = filter_name.split('_')[-1]
+            filter_func = FILTER_REGISTRY.get(filter_record)
+            filter_feature = filter_record.split('_')[-1]
             controlled_features.append(filter_feature) if filter_feature not in controlled_features else None
 
             if not filter_func:
-                logger.error(f"Filter function not found: {filter_name}")
+                logger.error(f"Filter function not found: {filter_record}")
                 continue
 
             # For progressive filters, count how many times this filter has been applied before
             application_count = 0
-            if filter_name.startswith('filter_progressive_'):
+            if filter_record.startswith('filter_progressive_'):
                 # Count previous applications of the same progressive filter
                 for prev_filter in self.filter_queue[:i]:
-                    if prev_filter['filter_name'] == filter_name:
+                    if prev_filter == filter_record:
                         application_count += 1
             
             # Test filter to calculate reduction rate
             pool_before = len(current_pool)
-            if filter_name.startswith('filter_progressive_'):
+            if filter_record.startswith('filter_progressive_'):
                 test_result = filter_func(current_pool.copy(), application_count)
             else:
                 test_result = filter_func(current_pool.copy())
             pool_after = len(test_result)
             reduction_rate = self._calculate_reduction_rate(pool_before, pool_after)
 
-            if filter_name.startswith('filter_progressive_'):
+            if filter_record.startswith('filter_progressive_'):
                 # Progressive filters don't use the radius multiplier system
                 filtered_result = filter_func(current_pool.copy(), application_count)
             else:
                 adjusted_filter = create_adjusted_filter(filter_func, radius_multiplier)
                 filtered_result = adjusted_filter(current_pool.copy())
 
-
             if filtered_result.empty:
-                logger.warning(f"Pool became empty after filter {i + 1}: {filter_name}, skipping remaining filters")
+                logger.warning(f"Pool became empty after filter {i + 1}: {filter_record}, skipping remaining filters")
                 break
 
-            # Mix the filtered result with the previous pool (30% old + 70% new)
-            # For first filter, mix with genre_pool; for subsequent, mix with current playback_pool
-            old_pool_for_mixing = self.genre_pool if i == 0 else self.playback_pool
             self.playback_pool = filtered_result
 
             # Update current_pool for next iteration
             current_pool = self.playback_pool.copy()
 
-            logger.info(f"Filter {i + 1} complete: {filter_name} -> mixed pool has {len(self.playback_pool)} tracks")
+            logger.info(f"Filter {i + 1} complete: {filter_record} -> mixed pool has {len(self.playback_pool)} tracks")
 
         # Check if we need cross-genre expansion after all filters
         if self.playback_pool is not None and len(self.playback_pool) < self.minimum_pool_threshold:
@@ -615,19 +555,28 @@ class Dataset:
         logger.info(f"Cleared {shown_count} shown tracks")
         return True
 
-    def _remove_contradicting_filter(self, filter_queue, new_adjustment_id, new_filter_record):
-        """Return filter queue with contradicting filter handled - either add new filter or drop both"""
-        contradicting_id = new_adjustment_id ^ 1  # XOR flips even/odd pairs
-        
-        # Check if contradicting filter exists
-        has_contradiction = any(f['adjustment_id'] == contradicting_id for f in filter_queue)
-        
-        if has_contradiction:
-            # Drop both - remove contradicting filter and don't add new one
-            cleaned_queue = [f for f in filter_queue if f['adjustment_id'] != contradicting_id]
-            logger.info(f"Contradiction detected: dropped existing filter (adjustment_{contradicting_id}) and not adding new filter (adjustment_{new_adjustment_id})")
-            return cleaned_queue
-        else:
-            # No contradiction - add new filter
-            return filter_queue + [new_filter_record]
+    def _remove_contradicting_filter(self, filter_queue):
+        """Return filter queue with contradicting filter handled - drop both if found"""
+        opposites = {}
+
+        # Build mapping of opposites from registry keys
+        for key in FILTER_REGISTRY.keys():
+            if "increase" in key:
+                opposite = key.replace("increase", "decrease", 1)
+            elif "decrease" in key:
+                opposite = key.replace("decrease", "increase", 1)
+            else:
+                continue
+            if opposite in FILTER_REGISTRY.keys():
+                opposites[key] = opposite
+
+        filters = set(filter_queue)  # work with a set for efficiency
+        to_remove = set()
+
+        for f in filters:
+            if f in opposites and opposites[f] in filters:
+                to_remove.add(f)
+                to_remove.add(opposites[f])
+
+        return list(filters - to_remove)
 

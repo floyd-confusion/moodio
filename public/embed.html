@@ -180,6 +180,53 @@
         .auth-link:hover, .logout-btn:hover {
             text-decoration: underline;
         }
+
+        .filter-button {
+            background: linear-gradient(135deg, var(--color-orange), #FF6B35);
+            border: none;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 25px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(188, 82, 21, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            min-width: 120px;
+            justify-content: center;
+        }
+
+        .filter-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(188, 82, 21, 0.4);
+            background: linear-gradient(135deg, #C55614, #E55A2B);
+        }
+
+        .filter-button:active {
+            transform: translateY(0);
+        }
+
+        .filter-button-emoji {
+            font-size: 1.1rem;
+        }
+
+        #filterButtonsSection {
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
     </style>
 </head>
 <body>
@@ -187,8 +234,8 @@
     <nav class="user-header">
         <div class="container-fluid">
             <div class="d-flex justify-content-between align-items-center">
-                <button class="btn btn-outline-music btn-sm" onclick="window.location.href='/genres'">
-                    ← Back to Genre Selection
+                <button class="btn btn-outline-music btn-sm" onclick="window.location.href='/sessions'">
+                    ← Back to Session Selection
                 </button>
                 <div id="userHeader">
                     <!-- User info will be added here by JavaScript -->
@@ -232,6 +279,14 @@
                     </div>
                 </div>
                 
+                <!-- Filter Buttons -->
+                <div class="text-center mt-4" id="filterButtonsSection" style="display: none;">
+                    <h5 class="mb-3 text-music">✨ Adjust Your Vibe</h5>
+                    <div id="filterButtonsContainer" class="d-flex justify-content-center gap-3 flex-wrap">
+                        <!-- Filter buttons will be populated here -->
+                    </div>
+                </div>
+
                 <!-- Next Track Button -->
                 <div class="text-center mt-4">
                     <button class="btn btn-music btn-lg px-5" id="nextButton" onclick="loadInitialTrack()">
@@ -251,6 +306,137 @@
         let currentTrackId = null;
         let likedTracks = new Set();
         let currentUser = null;
+
+        // Music filters with emoji mapping (using same emojis as audio dials)
+        const musicFilters = {
+            "Let's get groovy": { filter: "filter_increase_danceability", emoji: "💃" },
+            "Take the groove down": { filter: "filter_decrease_danceability", emoji: "💃" },
+            "Crank up the energy": { filter: "filter_increase_energy", emoji: "⚡" },
+            "Keep it chill": { filter: "filter_decrease_energy", emoji: "⚡" },
+            "Talk to me — more lyrics": { filter: "filter_increase_speechiness", emoji: "🗣️" },
+            "Less chatter, more vibe": { filter: "filter_decrease_speechiness", emoji: "🗣️" },
+            "Make it happier": { filter: "filter_increase_valence", emoji: "😊" },
+            "Go darker, moodier": { filter: "filter_decrease_valence", emoji: "😊" },
+            "Pick up the pace": { filter: "filter_increase_tempo", emoji: "🥁" },
+            "Slow it down": { filter: "filter_decrease_tempo", emoji: "🥁" },
+            "More acoustic vibes": { filter: "filter_progressive_increase_acousticness", emoji: "🎸" },
+            "Less acoustic please": { filter: "filter_progressive_decrease_acousticness", emoji: "🎸" },
+            "Go instrumental": { filter: "filter_progressive_increase_instrumentalness", emoji: "🎼" },
+            "Need more vocals": { filter: "filter_progressive_decrease_instrumentalness", emoji: "🎼" },
+            "Live concert feel": { filter: "filter_progressive_increase_liveness", emoji: "🎤" },
+            "Studio perfection": { filter: "filter_progressive_decrease_liveness", emoji: "🎤" }
+        };
+
+        function getRandomFilters(count = 3) {
+            /**
+             * Select random filters from the music filters object
+             *
+             * Args:
+             *     count (int): Number of random filters to select
+             *
+             * Returns:
+             *     Array: Array of filter objects with name, filter, and emoji
+             */
+            const filterNames = Object.keys(musicFilters);
+            const selected = [];
+            const used = new Set();
+
+            while (selected.length < count && selected.length < filterNames.length) {
+                const randomIndex = Math.floor(Math.random() * filterNames.length);
+                const filterName = filterNames[randomIndex];
+
+                if (!used.has(filterName)) {
+                    used.add(filterName);
+                    selected.push({
+                        name: filterName,
+                        filter: musicFilters[filterName].filter,
+                        emoji: musicFilters[filterName].emoji
+                    });
+                }
+            }
+
+            return selected;
+        }
+
+        function renderFilterButtons() {
+            /**
+             * Render three random filter buttons on the page after a track is shown
+             */
+            const filtersContainer = document.getElementById('filterButtonsContainer');
+            const filtersSection = document.getElementById('filterButtonsSection');
+
+            const randomFilters = getRandomFilters(3);
+
+            // Clear existing buttons
+            filtersContainer.innerHTML = '';
+
+            // Create buttons for each random filter
+            randomFilters.forEach(filter => {
+                const button = document.createElement('button');
+                button.className = 'filter-button';
+                button.innerHTML = `
+                    <span class="filter-button-emoji">${filter.emoji}</span>
+                    <span>${filter.name}</span>
+                `;
+                button.onclick = () => applyFilter(filter.filter);
+                filtersContainer.appendChild(button);
+            });
+
+            // Show the filters section
+            filtersSection.style.display = 'block';
+        }
+
+        async function applyFilter(filterName) {
+            /**
+             * Apply a specific filter and load the next track
+             *
+             * Args:
+             *     filterName (string): The filter function name to apply
+             */
+            if (!currentUser) {
+                console.error('No user authenticated for filter application');
+                return;
+            }
+
+            try {
+                // Get current session ID from the backend
+                const sessionResponse = await fetch(`/api/user/${currentUser.id}/sessions/current`);
+                const sessionData = await sessionResponse.json();
+
+                if (!sessionData.current_session || !sessionData.current_session.id) {
+                    throw new Error('No active session found');
+                }
+
+                const sessionId = sessionData.current_session.id;
+
+                // Hide filter buttons while processing
+                document.getElementById('filterButtonsSection').style.display = 'none';
+
+                // Apply the named filter via session's add_filter method
+                const response = await fetch(`/api/user/${currentUser.id}/sessions/${sessionId}/filters`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ filter_type: filterName })
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    throw new Error(result.error);
+                }
+
+                // Load a new track after applying the filter
+                loadInitialTrack();
+
+            } catch (error) {
+                console.error('Error applying filter:', error);
+                alert('Error applying filter. Please try again.');
+                // Re-show filter buttons on error
+                document.getElementById('filterButtonsSection').style.display = 'block';
+            }
+        }
 
         function updateLikeButton() {
             const likeButton = document.getElementById('likeButton');
@@ -492,13 +678,12 @@
                     label: 'Valence',
                     color: 'dial-valence'
                 },
-                { 
-                    key: 'tempo', 
+                {
+                    key: 'tempo',
                     value: Math.min(track.tempo / 200, 1), // Normalize tempo to 0-1 scale
-                    emoji: '🥁', 
+                    emoji: '🥁',
                     label: 'Tempo',
-                    color: 'dial-tempo',
-                    displayValue: `${Math.round(track.tempo)}`
+                    color: 'dial-tempo'
                 },
                 { 
                     key: 'acousticness', 
@@ -526,14 +711,24 @@
             const dialsContainer = document.getElementById('audioDialsContainer');
             dialsContainer.innerHTML = audioFeatures.map(feature => {
                 const percentage = Math.round(feature.value * 100);
-                const rotation = -90 + (feature.value * 360);
-                const displayValue = feature.displayValue || `${percentage}%`;
-                
+                // Map 0-100% to 360° angle for conic-gradient
+                const angle = feature.value * 360;
+
+                // For tempo, show actual BPM in tooltip but use normalized percentage for dial
+                let displayValue, tooltipValue;
+                if (feature.key === 'tempo') {
+                    displayValue = `${Math.round(track.tempo)} BPM`;
+                    tooltipValue = `${feature.label}: ${displayValue} (${percentage}% of scale)`;
+                } else {
+                    displayValue = `${percentage}%`;
+                    tooltipValue = `${feature.label}: ${displayValue}`;
+                }
+
                 return `
-                    <div class="audio-dial" data-tooltip="${feature.label}: ${displayValue}">
+                    <div class="audio-dial" data-tooltip="${tooltipValue}">
                         <div class="dial-circle"></div>
-                        <div class="dial-progress ${feature.color}" 
-                             style="--progress-rotation: ${rotation}deg;"></div>
+                        <div class="dial-progress ${feature.color}"
+                             style="--progress-angle: ${angle}deg;"></div>
                         <div class="dial-content">
                             <div class="dial-emoji">${feature.emoji}</div>
                         </div>
@@ -550,7 +745,7 @@
 
             try {
                 // Get current session ID from the backend
-                const sessionResponse = await fetch('/api/current_session');
+                const sessionResponse = await fetch(`/api/user/${currentUser.id}/sessions/current`);
                 const sessionData = await sessionResponse.json();
 
                 if (!sessionData.current_session || !sessionData.current_session.id) {
@@ -598,7 +793,16 @@
             }
 
             try {
-                const response = await fetch(`/api/user/${currentUser.id}/sessions/track`);
+                // Get current session to get the session ID
+                const sessionResponse = await fetch(`/api/user/${currentUser.id}/sessions/current`);
+                const sessionData = await sessionResponse.json();
+
+                if (!sessionData.current_session) {
+                    throw new Error('No active session found');
+                }
+
+                const sessionId = sessionData.current_session.id;
+                const response = await fetch(`/api/user/${currentUser.id}/sessions/${sessionId}/track`);
                 const track = await response.json();
 
                 if (track.error) {
@@ -609,6 +813,7 @@
                 document.getElementById('spotifyEmbed').src = `https://open.spotify.com/embed/track/${track.track_id}?autoplay=1`;
                 updateTrackInfo(track);
                 updateLikeButton();
+                renderFilterButtons();
             } catch (error) {
                 console.error('Error loading track:', error);
                 if (error.message.includes('No active session')) {

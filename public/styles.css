@@ -469,11 +469,16 @@ body {
   right: -4px;
   bottom: -4px;
   border-radius: 50%;
-  border: 4px solid currentColor;
-  border-right-color: transparent;
-  border-bottom-color: transparent;
-  transform: rotate(var(--progress-rotation, -90deg));
-  transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  background: conic-gradient(
+    from -90deg,
+    currentColor 0deg,
+    currentColor var(--progress-angle, 0deg),
+    transparent var(--progress-angle, 0deg),
+    transparent 360deg
+  );
+  mask: radial-gradient(circle, transparent 36px, black 40px);
+  -webkit-mask: radial-gradient(circle, transparent 36px, black 40px);
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dial-content {
