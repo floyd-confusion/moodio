@@ -607,6 +607,108 @@ def add_session_filter(user_id, session_id):
         logger.error(f"API: Error adding filter to session {session_id}: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
+@app.route('/api/user/<int:user_id>/sessions/<int:session_id>/likes', methods=['GET'])
+def get_session_likes(user_id, session_id):
+    """Get all liked tracks for a specific session"""
+    logger.debug(f"API: Getting liked tracks for session {session_id} for user {user_id}")
+
+    # Check if user is authenticated and matches the requested user_id
+    current_user_id = session.get('user_id')
+    if not current_user_id:
+        logger.warning("API: Unauthenticated user trying to get session likes")
+        return jsonify({'error': 'Authentication required'}), 401
+
+    if current_user_id != user_id:
+        logger.warning(f"API: User {current_user_id} trying to get session likes for user {user_id}")
+        return jsonify({'error': 'Access denied'}), 403
+
+    try:
+        # Load the session and verify ownership
+        from src.session import Session
+        try:
+            session_obj = Session(session_id)
+        except Exception as e:
+            logger.warning(f"API: Session {session_id} not found: {e}")
+            return jsonify({'error': 'Session not found'}), 404
+
+        # Verify session ownership
+        if session_obj.user_id != user_id:
+            logger.warning(f"API: User {user_id} trying to get likes from session {session_id} owned by {session_obj.user_id}")
+            return jsonify({'error': 'Session access denied'}), 403
+
+        # Get liked track IDs
+        liked_track_ids = session_obj.get_liked_track_ids()
+
+        logger.info(f"API: Returning {len(liked_track_ids)} liked tracks for session {session_id}")
+        return jsonify({
+            'liked_tracks': liked_track_ids,
+            'count': len(liked_track_ids)
+        })
+
+    except Exception as e:
+        logger.error(f"API: Error getting likes for session {session_id}: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/user/<int:user_id>/sessions/<int:session_id>/likes', methods=['POST'])
+def add_session_like(user_id, session_id):
+    """Add a track to liked tracks for a specific session"""
+    logger.debug(f"API: Adding like to session {session_id} for user {user_id}")
+
+    # Check if user is authenticated and matches the requested user_id
+    current_user_id = session.get('user_id')
+    if not current_user_id:
+        logger.warning("API: Unauthenticated user trying to add session like")
+        return jsonify({'error': 'Authentication required'}), 401
+
+    if current_user_id != user_id:
+        logger.warning(f"API: User {current_user_id} trying to add session like for user {user_id}")
+        return jsonify({'error': 'Access denied'}), 403
+
+    try:
+        # Load the session and verify ownership
+        from src.session import Session
+        try:
+            session_obj = Session(session_id)
+        except Exception as e:
+            logger.warning(f"API: Session {session_id} not found: {e}")
+            return jsonify({'error': 'Session not found'}), 404
+
+        # Verify session ownership
+        if session_obj.user_id != user_id:
+            logger.warning(f"API: User {user_id} trying to add like to session {session_id} owned by {session_obj.user_id}")
+            return jsonify({'error': 'Session access denied'}), 403
+
+        data = request.get_json()
+        if not data or 'track_id' not in data:
+            logger.warning("API: add_session_like called without track_id")
+            return jsonify({'error': 'track_id is required'}), 400
+
+        track_id = data['track_id']
+        if not track_id or not isinstance(track_id, str):
+            logger.warning(f"API: Invalid track_id: {track_id}")
+            return jsonify({'error': 'Valid track_id is required'}), 400
+
+        # Add the track to likes
+        was_added = session_obj.add_liked_track_by_id(track_id)
+
+        if was_added:
+            logger.info(f"API: Added track {track_id} to likes for session {session_id}")
+            return jsonify({
+                'message': 'Track added to likes',
+                'track_id': track_id,
+                'was_new': True
+            })
+        else:
+            logger.info(f"API: Track {track_id} already liked in session {session_id}")
+            return jsonify({
+                'message': 'Track already liked',
+                'track_id': track_id,
+                'was_new': False
+            })
+
+    except Exception as e:
+        logger.error(f"API: Error adding like to session {session_id}: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/api/user/<int:user_id>/sessions/<int:session_id>/track', methods=['GET'])
 def get_user_session_track(user_id, session_id):

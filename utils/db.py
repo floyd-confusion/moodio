@@ -85,17 +85,25 @@ class DatabaseManager:
             )
         ''')
         
-        # Liked tracks table using DataFrame index
+        # Liked tracks table using track_id
         conn.execute('''
             CREATE TABLE IF NOT EXISTS session_liked_tracks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 session_id INTEGER NOT NULL,
-                track_index INTEGER NOT NULL,
+                track_id VARCHAR(255) NOT NULL,
                 liked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
-                UNIQUE(session_id, track_index)
+                UNIQUE(session_id, track_id)
             )
         ''')
+
+        # Migration: Add track_id column if it doesn't exist (for existing databases)
+        try:
+            conn.execute('ALTER TABLE session_liked_tracks ADD COLUMN track_id VARCHAR(255)')
+            logger.info("Added track_id column to existing session_liked_tracks table")
+        except sqlite3.OperationalError:
+            # Column already exists
+            pass
         
         # Session state table (simplified)
         conn.execute('''
@@ -184,7 +192,10 @@ class DatabaseManager:
         """
         cursor = self.execute(query, params)
         result = cursor.fetchone()
-        return dict(result)
+        if result:
+            return dict(result)
+        else:
+            return None
     
     def fetch_all(self, query: str, params: Optional[Tuple] = None) -> List[sqlite3.Row]:
         """

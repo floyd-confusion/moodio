@@ -1,8 +1,9 @@
 import logging
-from datetime import datetime
 import numpy as np
 import pandas as pd
-from flask import session
+import requests
+import os
+import urllib.parse
 from src.filters import FILTER_REGISTRY, FILTER_RADIUS, create_adjusted_filter, FILTER_RADIUS_TEMPO
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -261,59 +262,6 @@ class Dataset:
             return 0.0
         return (pool_before - pool_after) / pool_before
 
-    def _mix_pools(self, old_pool, new_filtered_result):
-        """Mix old pool (30%) with new filtered result (70%) based on filtered result size"""
-        if new_filtered_result.empty:
-            logger.warning("Cannot mix pools: new filtered result is empty")
-            return old_pool if old_pool is not None and not old_pool.empty else pd.DataFrame()
-
-        # Base the mixing size on the filtered result size
-        filtered_pool_size = len(new_filtered_result)
-        current_ratio = self.get_fresh_injection_ratio()  # Default 0.3 (30% old)
-
-        # Calculate track counts using direct ratios
-        old_track_count = int(filtered_pool_size * current_ratio)  # 30% from old pool
-        new_track_count = filtered_pool_size - old_track_count  # 70% from new result
-
-        # Ensure we don't exceed available tracks
-        old_track_count = min(old_track_count, len(old_pool) if old_pool is not None and not old_pool.empty else 0)
-        new_track_count = min(new_track_count, len(new_filtered_result))
-
-        # If we can't get enough old tracks, add more new tracks to maintain total
-        if old_track_count < int(filtered_pool_size * current_ratio):
-            shortfall = int(filtered_pool_size * current_ratio) - old_track_count
-            new_track_count = min(new_track_count + shortfall, len(new_filtered_result))
-
-        logger.debug(
-            f"Pool mixing: {old_track_count} old + {new_track_count} new = {old_track_count + new_track_count} total")
-
-        # Sample tracks from both sources
-        mixed_tracks = []
-
-        # Add old tracks
-        if old_track_count > 0 and old_pool is not None and not old_pool.empty:
-            old_tracks = old_pool.sample(n=min(old_track_count, len(old_pool)))
-            mixed_tracks.append(old_tracks)
-            logger.debug(f"Added {len(old_tracks)} old tracks")
-
-        # Add new tracks
-        if new_track_count > 0:
-            new_tracks = new_filtered_result.sample(n=min(new_track_count, len(new_filtered_result)))
-            mixed_tracks.append(new_tracks)
-            logger.debug(f"Added {len(new_tracks)} new tracks")
-
-        # Combine and shuffle the final result
-        if mixed_tracks:
-            mixed_pool = pd.concat(mixed_tracks, ignore_index=True)
-            # Final shuffle to mix old and new tracks together
-            mixed_pool = mixed_pool.sample(frac=1.0).reset_index(drop=True)
-            logger.debug(f"Pool mixing complete: {len(mixed_pool)} tracks (ratio {current_ratio:.1%})")
-            return mixed_pool
-        else:
-            # Fallback to new filter result if mixing failed
-            logger.warning("Pool mixing failed, using new filter result only")
-            return new_filtered_result
-
     def _apply_filter_queue(self, radius_multiplier):
         """Rebuild playback pool by applying filters one-by-one with mixing after each"""
         if self.genre_pool is None:
@@ -493,6 +441,69 @@ class Dataset:
             'liveness': track['liveness']
         }
 
+    def get_youtube_video_id(self, track_name, artist_name):
+        """
+        Search for YouTube video ID using track name and artist.
+
+        Args:
+            track_name: Name of the track
+            artist_name: Name of the artist
+            api_key: YouTube Data API v3 key (optional, falls back to env var)
+
+        Returns:
+           video_id or None if not found
+        """
+        # Clean and format search query
+        search_query = f"{track_name} {artist_name}".strip()
+        try:
+            # Get API key from parameter or environment variable
+            youtube_api_key = os.environ.get('YOUTUBE_API_KEY')
+
+            if not youtube_api_key:
+                logger.warning("YouTube API key not provided and YOUTUBE_API_KEY environment variable not set")
+                return None
+
+            # URL encode the search query
+            encoded_query = urllib.parse.quote(search_query)
+
+            url_params = {
+                'part': 'snippet',
+                'type': 'video',
+                'q': encoded_query,
+                'videoCategoryId': 10,
+                'videoDuration': 'medium',
+                'regionCode': 'US',
+                'maxResults': 10,
+                'key': youtube_api_key,
+            }
+
+            logger.debug(f"YouTube API search for: '{search_query}'")
+
+            # Make API request with timeout
+            response = requests.get(url="https://www.googleapis.com/youtube/v3/search", timeout=5,
+                                    params=url_params)
+            response.raise_for_status()  # Raise exception for HTTP errors
+
+            # Parse JSON response
+            data = response.json()
+
+            # Check if we have results
+            if 'items' not in data or not data['items']:
+                logger.info(f"No YouTube results found for: '{search_query}'")
+                return None
+
+            # Get first video result
+            first_video = data['items'][0]
+            video_id = first_video['id']['videoId']
+            video_title = first_video['snippet']['title']
+
+            logger.info(f"YouTube video found for '{search_query}': {video_id} - {video_title}")
+            return video_id
+
+        except Exception as e:
+            logger.error(f"Unexpected error in YouTube search for '{search_query}': {e}")
+            return None
+
     def get_pool_stats(self):
         """Get statistics about the current track pools"""
         if self.playback_pool is None or self.playback_pool.empty:
@@ -579,4 +590,3 @@ class Dataset:
                 to_remove.add(opposites[f])
 
         return list(filters - to_remove)
-

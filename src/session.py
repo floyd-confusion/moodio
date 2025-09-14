@@ -38,7 +38,7 @@ class Session:
         self.user_id = user_id
         self.dataset = Dataset()
         self.db = get_db()
-        
+
         # Load session state if it exists
         self._load_state()
         
@@ -74,70 +74,65 @@ class Session:
         logger.info(f"Created new session {session_id}: {name} (User: {user_id})")
         return cls(session_id, name, user_id)
 
-    def add_liked_track(self, track_index: int) -> bool:
+    def add_liked_track_by_id(self, track_id: str) -> bool:
         """
-        Add a track to liked tracks using its DataFrame index.
-        
+        Add a track to liked tracks using its track_id.
+
         Args:
-            track_index: Index of track in the dataset DataFrame
-            
+            track_id: Spotify track ID
+
         Returns:
-            True if track was added, False if already liked or error
+            True if track was added (new), False if already existed or error
         """
         try:
-            # Check if track exists at this index
-            if track_index >= len(self.dataset.df) or track_index < 0:
-                logger.warning(f"Invalid track index {track_index} for session {self.session_id}")
-                return False
-            
             # Insert liked track (will be ignored if already exists due to UNIQUE constraint)
-            self.db.execute(
-                "INSERT OR IGNORE INTO session_liked_tracks (session_id, track_index) VALUES (?, ?)",
-                (self.session_id, track_index)
+            cursor = self.db.execute(
+                "INSERT OR IGNORE INTO session_liked_tracks (session_id, track_id) VALUES (?, ?)",
+                (self.session_id, track_id)
             )
-            
-            logger.info(f"Track index {track_index} added to likes for session {self.session_id}")
-            return True
-            
+
+            # Check if the insert actually added a row (rowcount > 0 means new like)
+            was_added = cursor.rowcount > 0
+
+            if was_added:
+                logger.info(f"Track {track_id} added to likes for session {self.session_id}")
+            else:
+                logger.debug(f"Track {track_id} already liked in session {self.session_id}")
+
+            return was_added
+
         except Exception as e:
-            logger.error(f"Error adding liked track for session {self.session_id}: {e}")
+            logger.error(f"Error adding liked track {track_id} for session {self.session_id}: {e}")
             return False
     
-    def get_liked_tracks(self) -> List[int]:
+    def get_liked_track_ids(self) -> List[str]:
         """
-        Get list of liked track indices for this session.
-        
+        Get list of liked track IDs for this session.
+
         Returns:
-            List of DataFrame indices for liked tracks
+            List of track IDs for liked tracks
         """
         try:
             rows = self.db.fetch_all(
-                "SELECT track_index FROM session_liked_tracks WHERE session_id = ? ORDER BY liked_at",
+                "SELECT track_id FROM session_liked_tracks WHERE session_id = ? ORDER BY liked_at",
                 (self.session_id,)
             )
-            
-            valid_indices = []
+
+            track_ids = []
             for row in rows:
                 try:
-                    # Handle both integer and bytes data
-                    track_index = row['track_index']
-                    if isinstance(track_index, bytes):
-                        logger.warning(f"Found corrupted track_index as bytes: {track_index}, cleaning up...")
-                        # Delete the corrupted entry
-                        self.db.execute(
-                            "DELETE FROM session_liked_tracks WHERE session_id = ? AND track_index = ?",
-                            (self.session_id, track_index)
-                        )
-                        continue
-                    
-                    valid_indices.append(int(track_index))
-                    
-                except (ValueError, TypeError) as e:
-                    logger.warning(f"Invalid track_index {track_index} for session {self.session_id}: {e}, skipping")
+                    track_id = row['track_id']
+                    if track_id and isinstance(track_id, str):
+                        track_ids.append(track_id)
+                    else:
+                        logger.warning(f"Invalid track_id {track_id} for session {self.session_id}, skipping")
+
+                except Exception as e:
+                    logger.warning(f"Error processing track_id for session {self.session_id}: {e}, skipping")
                     continue
-            
-            return valid_indices
-            
+
+            return track_ids
+
         except Exception as e:
             logger.error(f"Error fetching liked tracks for session {self.session_id}: {e}")
             return []
@@ -145,28 +140,32 @@ class Session:
     def get_liked_track_details(self) -> List[Dict[str, Any]]:
         """
         Get detailed information about liked tracks.
-        
+
         Returns:
             List of track dictionaries with full track information
         """
-        liked_indices = self.get_liked_tracks()
+        liked_track_ids = self.get_liked_track_ids()
         tracks = []
-        
-        for index in liked_indices:
+
+        for track_id in liked_track_ids:
             try:
-                if index < len(self.dataset.df):
-                    track = self.dataset.df.iloc[index]
+                # Find track in dataset by track_id
+                track_matches = self.dataset.df[self.dataset.df['track_id'] == track_id]
+                if not track_matches.empty:
+                    track = track_matches.iloc[0]
                     tracks.append({
                         'track_id': track['track_id'],
                         'track_name': track['track_name'],
                         'artist_name': track['artists'],
-                        'genre': track['track_genre'],
-                        'index': index
+                        'genre': track['track_genre']
                     })
+                else:
+                    logger.warning(f"Liked track {track_id} not found in current dataset for session {self.session_id}")
+
             except Exception as e:
-                logger.warning(f"Error getting details for liked track index {index}: {e}")
+                logger.warning(f"Error getting details for liked track {track_id}: {e}")
                 continue
-                
+
         return tracks
     
     def save_state(self) -> bool:
@@ -283,7 +282,7 @@ class Session:
             'last_track_id': session_row['last_track_id'] if session_row else None,
             'created_at': session_row['created_at'] if session_row else None,
             'updated_at': session_row['updated_at'] if session_row else None,
-            'liked_tracks_count': len(self.get_liked_tracks()),
+            'liked_tracks_count': len(self.get_liked_track_ids()),
             'pool_size': 0,  # Will be calculated dynamically when needed
             'adjustment_count': filter_count,
             'current_genre': getattr(self.dataset, 'current_genre_group', None),

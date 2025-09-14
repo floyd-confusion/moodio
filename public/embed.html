@@ -69,24 +69,37 @@
             color: white;
         }
         .like-button {
-            background-color: #f8f8f8;
-            border: 2px solid #1DB954;
-            color: #1DB954;
-            padding: 0.5rem 1rem;
-            font-size: 1.5rem;
-            border-radius: 4px;
+            background: linear-gradient(135deg, var(--color-paper), #F2F0E5);
+            border: 2px solid var(--color-orange);
+            color: var(--color-orange);
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 500;
+            border-radius: 25px;
             cursor: pointer;
-            transition: all 0.2s;
-            margin-top: 1rem;
-            flex: 1;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(188, 82, 21, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            min-width: 120px;
+            justify-content: center;
         }
         .like-button:hover {
-            background-color: #1DB954;
+            transform: translateY(-2px);
+            background: linear-gradient(135deg, var(--color-orange), var(--color-orange-light));
+            border-color: var(--color-orange-light);
             color: white;
+            box-shadow: 0 6px 18px rgba(188, 82, 21, 0.4);
+        }
+        .like-button:active {
+            transform: translateY(0);
         }
         .like-button.liked {
-            background-color: #1DB954;
+            background: linear-gradient(135deg, var(--color-orange), var(--color-orange-light));
+            border-color: var(--color-orange-light);
             color: white;
+            box-shadow: 0 6px 18px rgba(188, 82, 21, 0.4);
         }
         .liked-tracks-list {
             list-style: none;
@@ -145,16 +158,45 @@
         }
         
         .user-header {
-            position: absolute;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: white;
+            padding: 1rem 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .back-arrow {
+            position: fixed;
             top: 1rem;
-            right: 1rem;
+            left: 1rem;
+            z-index: 1001;
+            background: var(--color-orange);
+            color: white;
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
             display: flex;
             align-items: center;
-            gap: 1rem;
-            background: white;
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(188, 82, 21, 0.3);
+        }
+
+        .back-arrow:hover {
+            background: var(--color-orange-light);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(188, 82, 21, 0.4);
+        }
+
+        .back-arrow:active {
+            transform: translateY(0);
         }
         
         .user-info {
@@ -227,17 +269,117 @@
                 transform: translateY(0);
             }
         }
+
+        /* Sidebar Styles */
+        .liked-tracks-sidebar {
+            background: var(--color-paper);
+            border-left: 2px solid var(--color-200);
+            padding: 1.5rem;
+            height: calc(100vh - 100px);
+            overflow-y: auto;
+            position: sticky;
+            top: 100px;
+        }
+
+        .sidebar-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--color-900);
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--color-orange);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .liked-tracks-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .liked-track-item {
+            background: var(--color-50);
+            border: 1px solid var(--color-200);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-bottom: 0.75rem;
+            font-size: 0.85rem;
+            color: var(--color-800);
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .liked-track-item:hover {
+            background: var(--color-100);
+            border-color: var(--color-orange);
+            transform: translateX(2px);
+        }
+
+        .liked-track-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .track-name {
+            font-weight: 600;
+            color: var(--color-900);
+            margin-bottom: 0.25rem;
+        }
+
+        .track-artist {
+            color: var(--color-600);
+            font-size: 0.8rem;
+        }
+
+        .empty-likes {
+            text-align: center;
+            color: var(--color-500);
+            font-style: italic;
+            padding: 2rem 1rem;
+        }
+
+        .bg-orange {
+            background-color: var(--color-orange) !important;
+        }
+
+        .sidebar-toggle {
+            display: none;
+        }
+
+        @media (max-width: 1199px) {
+            .liked-tracks-sidebar {
+                display: none;
+            }
+
+            .sidebar-toggle {
+                display: inline-block;
+                background: var(--color-orange);
+                color: white;
+                border: none;
+                padding: 0.5rem 1rem;
+                border-radius: 20px;
+                font-size: 0.9rem;
+                cursor: pointer;
+                margin-left: 1rem;
+            }
+        }
     </style>
 </head>
 <body>
+    <!-- Back Button -->
+    <button class="back-arrow" onclick="window.location.href='/sessions'" title="Back to Session Selection">
+        ←
+    </button>
+
     <!-- User Header -->
     <nav class="user-header">
         <div class="container-fluid">
-            <div class="d-flex justify-content-between align-items-center">
-                <button class="btn btn-outline-music btn-sm" onclick="window.location.href='/sessions'">
-                    ← Back to Session Selection
+            <div class="d-flex justify-content-end align-items-center">
+                <button class="sidebar-toggle" onclick="toggleSidebar()">
+                    ❤️ Liked Tracks
                 </button>
-                <div id="userHeader">
+                <div id="userHeader" class="ms-3">
                     <!-- User info will be added here by JavaScript -->
                 </div>
             </div>
@@ -245,9 +387,9 @@
     </nav>
     
     <!-- Main Content -->
-    <div class="container py-5">
-        <div class="row justify-content-center">
-            <div class="col-12 col-lg-8">
+    <div class="container-fluid" style="padding-top: 6rem; padding-bottom: 2rem;">
+        <div class="row">
+            <div class="col-12 col-xl-8 col-lg-7">
                 <!-- Current Track Info -->
                 <div class="text-center mb-4">
                     <div class="track-info-container bg-white bg-opacity-50 rounded-4 p-4 mb-4" id="currentTrackInfo">
@@ -287,15 +429,33 @@
                     </div>
                 </div>
 
-                <!-- Next Track Button -->
+                <!-- Track Actions -->
                 <div class="text-center mt-4">
-                    <button class="btn btn-music btn-lg px-5" id="nextButton" onclick="loadInitialTrack()">
-                        Next Track
-                    </button>
+                    <div class="d-flex justify-content-center gap-3 flex-wrap">
+                        <button class="like-button" id="likeButton" onclick="toggleLike()">
+                            ❤️ Like This Track
+                        </button>
+                        <button class="btn btn-music btn-lg px-4" id="nextButton" onclick="loadInitialTrack()">
+                            Next Track
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Liked Tracks Sidebar -->
+            <div class="col-xl-4 col-lg-5 d-none d-lg-block">
+                <div class="liked-tracks-sidebar">
+                    <div class="sidebar-title">
+                        ❤️ Liked Tracks
+                        <span class="badge bg-orange ms-auto" id="likedTracksCount">0</span>
+                    </div>
+                    <ul class="liked-tracks-list" id="likedTracksList">
+                        <li class="empty-likes">No liked tracks yet</li>
+                    </ul>
                 </div>
             </div>
         </div>
-        
+
         <!-- Filter controls have been extracted to filter-controls.html for later restoration -->
     </div>
     
@@ -449,29 +609,44 @@
             }
         }
 
-        function toggleLike() {
-            if (!currentTrackId) return;
+        async function toggleLike() {
+            if (!currentTrackId || !currentUser) return;
 
-            fetch('/api/likes', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ track_id: currentTrackId })
-            })
-            .then(response => response.json())
-            .then(result => {
+            try {
+                // Get current session to get the session ID
+                const sessionResponse = await fetch(`/api/user/${currentUser.id}/sessions/current`);
+                const sessionData = await sessionResponse.json();
+
+                if (!sessionData.current_session) {
+                    throw new Error('No active session found');
+                }
+
+                const sessionId = sessionData.current_session.id;
+
+                const response = await fetch(`/api/user/${currentUser.id}/sessions/${sessionId}/likes`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ track_id: currentTrackId })
+                });
+
+                const result = await response.json();
+
                 if (!result.error) {
-                    if (likedTracks.has(currentTrackId)) {
-                        likedTracks.delete(currentTrackId);
-                    } else {
+                    // Update the liked tracks set based on server response
+                    if (result.was_new) {
                         likedTracks.add(currentTrackId);
                     }
+                    // Note: Since we only have add functionality, we don't remove from the set
                     updateLikeButton();
                     loadLikedTracks();
+                } else {
+                    console.error('Error toggling like:', result.error);
                 }
-            })
-            .catch(error => console.error('Error:', error));
+            } catch (error) {
+                console.error('Error toggling like:', error);
+            }
         }
 
         function loadAdjustmentHistory() {
@@ -595,23 +770,50 @@
             });
         }
 
-        function loadLikedTracks() {
-            fetch('/api/likes')
-                .then(response => response.json())
-                .then(data => {
-                    likedTracks = new Set(data.liked_tracks);
-                    updateLikeButton();
-                    
-                    const likedTracksList = document.getElementById('likedTracksList');
+        async function loadLikedTracks() {
+            if (!currentUser) return;
+
+            try {
+                // Get current session to get the session ID
+                const sessionResponse = await fetch(`/api/user/${currentUser.id}/sessions/current`);
+                const sessionData = await sessionResponse.json();
+
+                if (!sessionData.current_session) {
+                    console.log('No active session found for loading liked tracks');
+                    return;
+                }
+
+                const sessionId = sessionData.current_session.id;
+
+                // Get liked tracks for this session
+                const response = await fetch(`/api/user/${currentUser.id}/sessions/${sessionId}/likes`);
+                const data = await response.json();
+
+                if (data.error) {
+                    console.error('Error loading liked tracks:', data.error);
+                    return;
+                }
+
+                likedTracks = new Set(data.liked_tracks || []);
+                updateLikeButton();
+
+                // Update likes count badge
+                const likedTracksCount = document.getElementById('likedTracksCount');
+                if (likedTracksCount) {
+                    likedTracksCount.textContent = likedTracks.size;
+                }
+
+                const likedTracksList = document.getElementById('likedTracksList');
+                if (likedTracksList) {
                     likedTracksList.innerHTML = '';
-                    
+
                     if (likedTracks.size === 0) {
-                        likedTracksList.innerHTML = '<li class="liked-track-item">No liked tracks yet</li>';
+                        likedTracksList.innerHTML = '<li class="empty-likes">No liked tracks yet</li>';
                         return;
                     }
 
                     // Get track details for each liked track
-                    Promise.all(Array.from(likedTracks).map(trackId => 
+                    Promise.all(Array.from(likedTracks).map(trackId =>
                         fetch(`/api/track/${trackId}`)
                             .then(response => response.json())
                             .catch(() => null)
@@ -620,12 +822,17 @@
                         tracks.filter(track => track).forEach(track => {
                             const li = document.createElement('li');
                             li.className = 'liked-track-item';
-                            li.textContent = `${track.track_name} - ${track.artist_name}`;
+                            li.innerHTML = `
+                                <div class="track-name">${track.track_name}</div>
+                                <div class="track-artist">${track.artist_name}</div>
+                            `;
                             likedTracksList.appendChild(li);
                         });
                     });
-                })
-                .catch(error => console.error('Error:', error));
+                }
+            } catch (error) {
+                console.error('Error loading liked tracks:', error);
+            }
         }
 
         function formatValue(value) {
@@ -825,6 +1032,12 @@
             }
         }
 
+        function toggleSidebar() {
+            // This function would handle mobile sidebar toggle
+            // For now, we'll redirect to a dedicated liked tracks page on mobile
+            console.log('Sidebar toggle - could implement mobile modal here');
+        }
+
         // Authentication functions
         async function checkAuthStatus() {
             try {
@@ -843,8 +1056,9 @@
                         <button class="logout-btn" onclick="handleLogout()">Logout</button>
                     `;
 
-                    // Now that user is authenticated, load initial track
+                    // Now that user is authenticated, load initial track and liked tracks
                     loadInitialTrack();
+                    loadLikedTracks();
                 } else {
                     // User is not logged in, redirect to auth
                     window.location.href = '/auth';
