@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 import requests
 import os
-import urllib.parse
 from src.filters import FILTER_REGISTRY, FILTER_RADIUS, create_adjusted_filter, FILTER_RADIUS_TEMPO
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -76,14 +75,6 @@ class Dataset:
 
         self.shown_tracks = set()  # Store tracks that have been shown to avoid repetition
 
-        # Legacy compatibility (deprecated)
-        self.current_pool = None
-        self.original_pool = None
-        self.adjustment_history = []
-
-        # danceability, energy, speechiness, valence, tempo,
-        # loudness, mode(major/minor), acousticness, instrumentalness, liveness
-
     def set_genre_pool(self, genre_group):
         """Set the genre pool from the selected genre group and reset system"""
         logger.info(f"Setting genre pool for: {genre_group}")
@@ -111,6 +102,28 @@ class Dataset:
         logger.info(f"Genre pool set with {pool_size} tracks from genres: {group_genres}")
         return pool_size > 0
 
+    def rebuild_playback_pool(self):
+        """Add a filter to the queue and rebuild the playback pool"""
+        if self.genre_pool is None:
+            logger.error("Adjustment attempted without genre pool selected")
+            return
+
+        self.filter_queue = self._remove_contradicting_filter(self.filter_queue, )
+
+        # Rebuild playback pool by applying all filters in sequence
+        pool_size_before = len(self.playback_pool) if self.playback_pool is not None else 0
+
+        for p in range(5):
+            self._apply_filter_queue(1 * 1.3 ** p)
+            pool_size_after = len(self.playback_pool)
+            if pool_size_after >= self.minimum_pool_threshold:
+                logger.info(f"Filters applied: {pool_size_before} → {pool_size_after} tracks")
+                break
+        pool_size = len(self.playback_pool)
+
+        if pool_size < self.minimum_pool_threshold:
+            logger.warning(f"Playback pool size below minimum threshold: {pool_size} < {self.minimum_pool_threshold}")
+
     def get_random_track(self, shown_tracks):
         """Get a track from the current pool using configured selection strategy"""
         # Use playback pool if it has tracks, otherwise use genre pool
@@ -124,13 +137,11 @@ class Dataset:
         unshown_pool = pool_to_use[~pool_to_use['track_id'].isin(shown_tracks)]
         track = self._get_average_centered_track(unshown_pool)
 
-        # Record that this track has been shown
-        track_id = track['track_id']
-
-        if not track:
+        if track is None:
             return None
 
-        self.shown_tracks.add(track_id)
+        # Record that this track has been shown
+        track_id = track['track_id']
 
         logger.debug(
             f"Selected track: {track['track_name']} by {track['artists']} (shown: {len(self.shown_tracks)} total)")
@@ -147,6 +158,115 @@ class Dataset:
             'acousticness': track['acousticness'],
             'instrumentalness': track['instrumentalness'],
             'liveness': track['liveness']
+        }
+
+    def get_track_by_id(self, track_id):
+        """Get track details by ID"""
+        track = self.df[self.df['track_id'] == track_id]
+        if track.empty:
+            return None
+
+        track = track.iloc[0]
+        return {
+            'track_id': track['track_id'],
+            'track_name': track['track_name'],
+            'artist_name': track['artists'],
+            'genre': track['track_genre'],
+            'danceability': track['danceability'],
+            'energy': track['energy'],
+            'speechiness': track['speechiness'],
+            'valence': track['valence'],
+            'tempo': track['tempo'],
+            'acousticness': track['acousticness'],
+            'instrumentalness': track['instrumentalness'],
+            'liveness': track['liveness']
+        }
+
+    def get_youtube_video_id(self, track_name, artist_name):
+        """
+        Search for YouTube video ID using track name and artist.
+
+        Args:
+            track_name: Name of the track
+            artist_name: Name of the artist
+            api_key: YouTube Data API v3 key (optional, falls back to env var)
+
+        Returns:
+           video_id or None if not found
+        """
+        # Clean and format search query
+        search_query = f"{track_name.replace(' ', '+')}+{artist_name.replace(' ', '+').replace(';','+')}"
+        try:
+            # Get API key from parameter or environment variable
+            youtube_api_key = os.environ.get('YOUTUBE_API_KEY')
+
+            if not youtube_api_key:
+                logger.warning("YouTube API key not provided and YOUTUBE_API_KEY environment variable not set")
+                return None
+
+            url_params = {
+                'part': 'snippet',
+                'type': 'video',
+                'q': search_query,
+                'videoCategoryId': 10,
+                'regionCode': 'US',
+                'maxResults': 10,
+                'key': youtube_api_key,
+            }
+
+            logger.debug(f"YouTube API search for: '{search_query}'")
+
+            # Make API request with timeout
+            response = requests.get(url="https://www.googleapis.com/youtube/v3/search", timeout=5,
+                                    params=url_params)
+            response.raise_for_status()  # Raise exception for HTTP errors
+
+            # Parse JSON response
+            data = response.json()
+
+            # Check if we have results
+            if 'items' not in data or not data['items']:
+                logger.info(f"No YouTube results found for: '{search_query}'")
+                return None
+
+            # Get first video result
+            first_video = data['items'][0]
+            video_id = first_video['id']['videoId']
+            video_title = first_video['snippet']['title']
+
+            logger.info(f"YouTube video found for '{search_query}': {video_id} - {video_title}")
+            return video_id
+
+        except Exception as e:
+            logger.error(f"Unexpected error in YouTube search for '{search_query}': {e}")
+            return None
+
+    def get_pool_stats(self):
+        """Get statistics about the current track pools"""
+        if self.playback_pool is None or self.playback_pool.empty:
+            return {
+                'total_tracks': len(self.df) if self.df is not None else 0,
+                'genre_pool_size': len(self.genre_pool) if self.genre_pool is not None else 0,
+                'playback_pool_size': 0,
+                'pool_reduction_pct': 0,
+                'filters_applied': len(self.filter_queue),
+                'avg_stats': {}
+            }
+
+        genre_size = len(self.genre_pool) if self.genre_pool is not None else 0
+        playback_size = len(self.playback_pool)
+        reduction_pct = ((genre_size - playback_size) / genre_size * 100) if genre_size > 0 else 0
+
+        avg_stats = self._get_pool_averages()
+
+        return {
+            'total_tracks': len(self.df),
+            'genre_pool_size': genre_size,
+            'playback_pool_size': playback_size,
+            'pool_reduction_pct': round(reduction_pct, 1),
+            'filters_applied': len(self.filter_queue),
+            'tracks_shown': len(self.shown_tracks),
+            'avg_stats': avg_stats
         }
 
     def _get_average_centered_track(self, pool):
@@ -226,28 +346,6 @@ class Dataset:
             logger.debug(f"Radius-constrained selection: {len(candidates)} unshown candidates within radius")
 
         return track
-
-    def rebuild_playback_pool(self):
-        """Add a filter to the queue and rebuild the playback pool"""
-        if self.genre_pool is None:
-            logger.error("Adjustment attempted without genre pool selected")
-            return
-
-        self.filter_queue = self._remove_contradicting_filter(self.filter_queue, )
-
-        # Rebuild playback pool by applying all filters in sequence
-        pool_size_before = len(self.playback_pool) if self.playback_pool is not None else 0
-
-        for p in range(5):
-            self._apply_filter_queue(1 * 1.2 ** p)
-            pool_size_after = len(self.playback_pool)
-            if pool_size_after >= self.minimum_pool_threshold:
-                logger.info(f"Filters applied: {pool_size_before} → {pool_size_after} tracks")
-                break
-        pool_size = len(self.playback_pool)
-
-        if pool_size < self.minimum_pool_threshold:
-            logger.warning(f"Playback pool size below minimum threshold: {pool_size} < {self.minimum_pool_threshold}")
 
     def _calculate_reduction_rate(self, pool_before, pool_after):
         """Calculate the reduction rate from filter application"""
@@ -411,149 +509,6 @@ class Dataset:
                 averages[feature] = round(target_pool[feature].mean(), 3)
 
         return averages
-
-    def get_track_by_id(self, track_id):
-        """Get track details by ID"""
-        track = self.df[self.df['track_id'] == track_id]
-        if track.empty:
-            return None
-
-        track = track.iloc[0]
-        return {
-            'track_id': track['track_id'],
-            'track_name': track['track_name'],
-            'artist_name': track['artists'],
-            'genre': track['track_genre'],
-            'danceability': track['danceability'],
-            'energy': track['energy'],
-            'speechiness': track['speechiness'],
-            'valence': track['valence'],
-            'tempo': track['tempo'],
-            'acousticness': track['acousticness'],
-            'instrumentalness': track['instrumentalness'],
-            'liveness': track['liveness']
-        }
-
-    def get_youtube_video_id(self, track_name, artist_name):
-        """
-        Search for YouTube video ID using track name and artist.
-
-        Args:
-            track_name: Name of the track
-            artist_name: Name of the artist
-            api_key: YouTube Data API v3 key (optional, falls back to env var)
-
-        Returns:
-           video_id or None if not found
-        """
-        # Clean and format search query
-        search_query = f"{track_name.replace(' ', '+')}+{artist_name.replace(' ', '+').replace(';','+')}"
-        try:
-            # Get API key from parameter or environment variable
-            youtube_api_key = os.environ.get('YOUTUBE_API_KEY')
-
-            if not youtube_api_key:
-                logger.warning("YouTube API key not provided and YOUTUBE_API_KEY environment variable not set")
-                return None
-
-            url_params = {
-                'part': 'snippet',
-                'type': 'video',
-                'q': search_query,
-                'videoCategoryId': 10,
-                'regionCode': 'US',
-                'maxResults': 10,
-                'key': youtube_api_key,
-            }
-
-            logger.debug(f"YouTube API search for: '{search_query}'")
-
-            # Make API request with timeout
-            response = requests.get(url="https://www.googleapis.com/youtube/v3/search", timeout=5,
-                                    params=url_params)
-            response.raise_for_status()  # Raise exception for HTTP errors
-
-            # Parse JSON response
-            data = response.json()
-
-            # Check if we have results
-            if 'items' not in data or not data['items']:
-                logger.info(f"No YouTube results found for: '{search_query}'")
-                return None
-
-            # Get first video result
-            first_video = data['items'][0]
-            video_id = first_video['id']['videoId']
-            video_title = first_video['snippet']['title']
-
-            logger.info(f"YouTube video found for '{search_query}': {video_id} - {video_title}")
-            return video_id
-
-        except Exception as e:
-            logger.error(f"Unexpected error in YouTube search for '{search_query}': {e}")
-            return None
-
-    def get_pool_stats(self):
-        """Get statistics about the current track pools"""
-        if self.playback_pool is None or self.playback_pool.empty:
-            return {
-                'total_tracks': len(self.df) if self.df is not None else 0,
-                'genre_pool_size': len(self.genre_pool) if self.genre_pool is not None else 0,
-                'playback_pool_size': 0,
-                'pool_reduction_pct': 0,
-                'filters_applied': len(self.filter_queue),
-                'avg_stats': {}
-            }
-
-        genre_size = len(self.genre_pool) if self.genre_pool is not None else 0
-        playback_size = len(self.playback_pool)
-        reduction_pct = ((genre_size - playback_size) / genre_size * 100) if genre_size > 0 else 0
-
-        avg_stats = self._get_pool_averages()
-
-        return {
-            'total_tracks': len(self.df),
-            'genre_pool_size': genre_size,
-            'playback_pool_size': playback_size,
-            'pool_reduction_pct': round(reduction_pct, 1),
-            'filters_applied': len(self.filter_queue),
-            'tracks_shown': len(self.shown_tracks),
-            'avg_stats': avg_stats
-        }
-
-    def get_adjustment_history(self):
-        """Get the history of adjustments made by the user"""
-        return self.adjustment_history
-
-    def clear_adjustment_history(self):
-        """Clear filter queue, shown tracks, and reset to genre pool"""
-        filters_count = len(self.filter_queue)
-        adjustments_count = len(self.adjustment_history)
-        shown_count = len(self.shown_tracks)
-
-        # Clear filter queue, adjustment history, and shown tracks
-        self.filter_queue = []
-        self.adjustment_history = []
-        self.shown_tracks.clear()
-
-        if self.genre_pool is not None:
-            pool_size_before = len(self.playback_pool) if self.playback_pool is not None else 0
-            self.playback_pool = self.genre_pool.copy()
-            self.current_pool = self.playback_pool.copy()  # Legacy compatibility
-            pool_size_after = len(self.playback_pool)
-            logger.info(
-                f"System reset: removed {filters_count} filters, cleared {shown_count} shown tracks, {pool_size_before} → {pool_size_after} tracks")
-        else:
-            logger.warning("Attempted to reset pool but no genre pool exists")
-
-        return True
-
-    def clear_shown_tracks(self):
-        """Clear only the shown tracks history"""
-        shown_count = len(self.shown_tracks)
-        self.shown_tracks.clear()
-        logger.info(f"Cleared {shown_count} shown tracks")
-        return True
 
     def _remove_contradicting_filter(self, filter_queue):
         """Return filter queue with contradicting filter handled - drop both if found"""

@@ -577,6 +577,99 @@ def add_session_filter(user_id, session_id):
         logger.error(f"API: Error adding filter to session {session_id}: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
+@app.route('/api/user/<int:user_id>/sessions/<int:session_id>/filters', methods=['DELETE'])
+def delete_session_filter(user_id, session_id):
+    """Delete a specific filter from a session"""
+    logger.info(f"API: Deleting filter from session {session_id} for user {user_id}")
+
+    # Check if user is authenticated and matches the requested user_id
+    current_user_id = session.get('user_id')
+    if not current_user_id:
+        logger.warning("API: Unauthenticated user trying to delete filter from session")
+        return jsonify({'error': 'Authentication required'}), 401
+
+    if current_user_id != user_id:
+        logger.warning(f"API: User {current_user_id} trying to delete filter from session for user {user_id}")
+        return jsonify({'error': 'Access denied'}), 403
+
+    try:
+        data = request.get_json()
+        filter_id = data.get('filter_id')
+
+        if not filter_id:
+            return jsonify({'error': 'filter_id is required'}), 400
+
+        # Load the session and verify ownership
+        try:
+            session_obj = Session(session_id)
+        except Exception as e:
+            logger.error(f"API: Session {session_id} not found: {e}")
+            return jsonify({'error': 'Session not found'}), 404
+
+        if session_obj.user_id and session_obj.user_id != user_id:
+            logger.warning(f"API: User {user_id} does not own session {session_id} (owner: {session_obj.user_id})")
+            return jsonify({'error': 'Access denied'}), 403
+
+        # Delete the specific filter
+        db = get_db()
+        rows_deleted = db.delete('session_filters', 'id = ? AND session_id = ?', (filter_id, session_id))
+
+        if rows_deleted == 0:
+            return jsonify({'error': 'Filter not found'}), 404
+
+        return jsonify({
+            'message': 'Filter deleted successfully',
+            'filter_id': filter_id,
+            'session_id': session_id
+        })
+
+    except Exception as e:
+        logger.error(f"API: Error deleting filter from session {session_id}: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/user/<int:user_id>/sessions/<int:session_id>/filters', methods=['GET'])
+def get_session_filters(user_id, session_id):
+    """Get all filters for a specific session"""
+    logger.debug(f"API: Getting filters for session {session_id} for user {user_id}")
+
+    # Check if user is authenticated and matches the requested user_id
+    current_user_id = session.get('user_id')
+    if not current_user_id:
+        logger.warning("API: Unauthenticated user trying to get session filters")
+        return jsonify({'error': 'Authentication required'}), 401
+
+    if current_user_id != user_id:
+        logger.warning(f"API: User {current_user_id} trying to get session filters for user {user_id}")
+        return jsonify({'error': 'Access denied'}), 403
+
+    try:
+        # Load the session and verify ownership
+        try:
+            session_obj = Session(session_id)
+        except Exception as e:
+            logger.error(f"API: Session {session_id} not found: {e}")
+            return jsonify({'error': 'Session not found'}), 404
+
+        if session_obj.user_id and session_obj.user_id != user_id:
+            logger.warning(f"API: User {user_id} does not own session {session_id} (owner: {session_obj.user_id})")
+            return jsonify({'error': 'Access denied'}), 403
+
+        # Get all filters for this session
+        db = get_db()
+        filters = db.fetch_all(
+            'SELECT id, filter_type, filter_value, applied_at FROM session_filters WHERE session_id = ? ORDER BY applied_at DESC',
+            (session_id,)
+        )
+
+        return jsonify({
+            'session_id': session_id,
+            'filters': [dict(filter_row) for filter_row in filters]
+        })
+
+    except Exception as e:
+        logger.error(f"API: Error getting filters for session {session_id}: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
 @app.route('/api/user/<int:user_id>/sessions/<int:session_id>/likes', methods=['GET'])
 def get_session_likes(user_id, session_id):
     """Get all liked tracks for a specific session"""

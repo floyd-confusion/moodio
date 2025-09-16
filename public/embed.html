@@ -332,11 +332,87 @@
             font-size: 0.8rem;
         }
 
-        .empty-likes {
+        .empty-likes, .empty-filters {
             text-align: center;
             color: var(--color-500);
             font-style: italic;
             padding: 2rem 1rem;
+        }
+
+        .session-filters-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .session-filter-item {
+            background: var(--color-50);
+            border: 1px solid var(--color-200);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-bottom: 0.75rem;
+            font-size: 0.85rem;
+            color: var(--color-800);
+            transition: all 0.2s ease;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            justify-content: space-between;
+        }
+
+        .session-filter-item:hover {
+            background: var(--color-100);
+            border-color: var(--color-red);
+            transform: translateX(2px);
+        }
+
+        .session-filter-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .filter-content {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex: 1;
+        }
+
+        .filter-emoji {
+            font-size: 1.2em;
+        }
+
+        .filter-text {
+            font-weight: 500;
+            color: var(--color-900);
+            flex: 1;
+        }
+
+        .filter-time {
+            color: var(--color-600);
+            font-size: 0.75rem;
+        }
+
+        .delete-filter-btn {
+            background: none;
+            border: none;
+            color: var(--color-red);
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: 4px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            font-size: 1rem;
+            line-height: 1;
+        }
+
+        .session-filter-item:hover .delete-filter-btn {
+            opacity: 1;
+        }
+
+        .delete-filter-btn:hover {
+            background: var(--color-red);
+            color: white;
         }
 
         .bg-orange {
@@ -530,6 +606,15 @@
                     <ul class="liked-tracks-list" id="likedTracksList">
                         <li class="empty-likes">No liked tracks yet</li>
                     </ul>
+
+                    <!-- Session Filters Section -->
+                    <div class="sidebar-title mt-4">
+                        🎛️ Applied Filters
+                        <span class="badge bg-orange ms-auto" id="filtersCount">0</span>
+                    </div>
+                    <ul class="session-filters-list" id="sessionFiltersList">
+                        <li class="empty-filters">No filters applied yet</li>
+                    </ul>
                 </div>
             </div>
         </div>
@@ -564,6 +649,16 @@
             "Live concert feel": { filter: "filter_progressive_increase_liveness", emoji: "🎤" },
             "Studio perfection": { filter: "filter_progressive_decrease_liveness", emoji: "🎤" }
         };
+
+        // Create reverse lookup from filter name to display text and emoji
+        const filterMapping = {};
+        Object.keys(musicFilters).forEach(displayName => {
+            const filterData = musicFilters[displayName];
+            filterMapping[filterData.filter] = {
+                displayName: displayName,
+                emoji: filterData.emoji
+            };
+        });
 
         function getRandomFilters(count = 3) {
             /**
@@ -667,6 +762,9 @@
 
                 // Load a new track after applying the filter
                 loadInitialTrack();
+
+                // Reload the session filters list
+                loadSessionFilters();
 
             } catch (error) {
                 console.error('Error applying filter:', error);
@@ -913,6 +1011,120 @@
             }
         }
 
+        async function loadSessionFilters() {
+            if (!currentUser) return;
+
+            try {
+                // Get current session to get the session ID
+                const sessionResponse = await fetch(`/api/user/${currentUser.id}/sessions/current`);
+                const sessionData = await sessionResponse.json();
+
+                if (!sessionData.current_session) {
+                    console.log('No active session found for loading session filters');
+                    return;
+                }
+
+                const sessionId = sessionData.current_session.id;
+
+                // Get filters for this session
+                const response = await fetch(`/api/user/${currentUser.id}/sessions/${sessionId}/filters`);
+                const data = await response.json();
+
+                if (data.error) {
+                    console.error('Error loading session filters:', data.error);
+                    return;
+                }
+
+                const filters = data.filters || [];
+
+                // Update filters count badge
+                const filtersCount = document.getElementById('filtersCount');
+                if (filtersCount) {
+                    filtersCount.textContent = filters.length;
+                }
+
+                const sessionFiltersList = document.getElementById('sessionFiltersList');
+                if (sessionFiltersList) {
+                    sessionFiltersList.innerHTML = '';
+
+                    if (filters.length === 0) {
+                        sessionFiltersList.innerHTML = '<li class="empty-filters">No filters applied yet</li>';
+                        return;
+                    }
+
+                    // Render each filter
+                    filters.forEach(filter => {
+                        const li = document.createElement('li');
+                        li.className = 'session-filter-item';
+
+                        // Get display name and emoji from filter mapping
+                        const filterInfo = filterMapping[filter.filter_type];
+                        const displayName = filterInfo ? filterInfo.displayName : filter.filter_type;
+                        const emoji = filterInfo ? filterInfo.emoji : '🎛️';
+
+                        // Format time
+                        const time = new Date(filter.applied_at).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        });
+
+                        li.innerHTML = `
+                            <div class="filter-content">
+                                <span class="filter-emoji">${emoji}</span>
+                                <span class="filter-text">${displayName}</span>
+                                <span class="filter-time">${time}</span>
+                            </div>
+                            <button class="delete-filter-btn" onclick="deleteSessionFilter(${filter.id})" title="Remove filter">
+                                ×
+                            </button>
+                        `;
+                        sessionFiltersList.appendChild(li);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading session filters:', error);
+            }
+        }
+
+        async function deleteSessionFilter(filterId) {
+            if (!currentUser) return;
+
+            try {
+                // Get current session to get the session ID
+                const sessionResponse = await fetch(`/api/user/${currentUser.id}/sessions/current`);
+                const sessionData = await sessionResponse.json();
+
+                if (!sessionData.current_session) {
+                    throw new Error('No active session found');
+                }
+
+                const sessionId = sessionData.current_session.id;
+
+                // Delete the filter
+                const response = await fetch(`/api/user/${currentUser.id}/sessions/${sessionId}/filters`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ filter_id: filterId })
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    throw new Error(result.error);
+                }
+
+                // Reload the filters list
+                loadSessionFilters();
+
+                console.log(`Filter ${filterId} deleted successfully`);
+            } catch (error) {
+                console.error('Error deleting session filter:', error);
+                alert('Error removing filter. Please try again.');
+            }
+        }
+
         function formatValue(value) {
             if (typeof value === 'number') {
                 return value.toFixed(2);
@@ -1137,6 +1349,7 @@
                     // Now that user is authenticated, load initial track and liked tracks
                     loadInitialTrack();
                     loadLikedTracks();
+                    loadSessionFilters();
                     initializePlaybackToggle();
                 } else {
                     // User is not logged in, redirect to auth
