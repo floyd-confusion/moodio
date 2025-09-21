@@ -316,7 +316,7 @@ class DatabaseManager:
 db = DatabaseManager()
 
 
-def init_db(db_path: str = "app.db") -> None:
+def init_db(db_path: str) -> None:
     """
     Initialize the global database instance.
     

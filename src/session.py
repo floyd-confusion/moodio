@@ -455,7 +455,6 @@ def get_all_sessions(user_id: int = None) -> List[Dict[str, Any]]:
         logger.error(f"Error fetching sessions for user {user_id}: {e}")
         return []
 
-
 def delete_session(session_id: int) -> bool:
     """
     Delete a session and all its associated data.

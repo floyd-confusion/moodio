@@ -54,8 +54,8 @@
   --bs-light-rgb: 230, 228, 217;
   --bs-dark: var(--color-900);
   --bs-dark-rgb: 40, 39, 38;
-  --bs-body-bg: var(--color-blue);
-  --bs-body-color: white;
+  --bs-body-bg: var(--color-paper);
+
 }
 
 /* Global styles */

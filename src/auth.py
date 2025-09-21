@@ -274,32 +274,3 @@ def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Error getting user by username {username}: {e}")
         return None
-
-
-def delete_user(user_id: int) -> bool:
-    """
-    Delete a user and all associated data.
-    
-    Args:
-        user_id: User ID to delete
-        
-    Returns:
-        True if user was deleted successfully
-    """
-    try:
-        db = get_db()
-        
-        with db.transaction():
-            # Delete user (CASCADE will handle sessions and related data)
-            rows_affected = db.delete('users', 'id = ?', (user_id,))
-            
-        if rows_affected > 0:
-            logger.info(f"User {user_id} deleted successfully")
-            return True
-        else:
-            logger.warning(f"User {user_id} not found for deletion")
-            return False
-            
-    except Exception as e:
-        logger.error(f"Error deleting user {user_id}: {e}")
-        return False
